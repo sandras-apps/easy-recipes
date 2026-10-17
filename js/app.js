@@ -19,7 +19,7 @@ const T = {
   results: 'Results', noResults: "No recipes found. Try another word!",
   offline: "Can't reach the recipe kitchen right now. Check your connection — your saved recipes still work offline.",
   back: 'Back', save: 'Save', saved: 'Saved', ingredients: 'Ingredients', steps: 'Steps',
-  batch: 'Batch size', batchHint: 'All doses update everywhere, steps included.',
+  batch: 'Servings', batchHint: 'All doses update everywhere, steps included.',
   units: 'Units', uOrig: 'As written', uMetric: 'Metric', uUS: 'US',
   unitsHint: 'Metric: grams, ml, °C. US: ounces, pounds, cups, °F. Teaspoons and tablespoons stay the same; cups are converted by volume.',
   backAt: 'back at', phoneHint: "Set a timer on your phone too — Easy Recipes can only ring while it's open.",
@@ -43,14 +43,32 @@ const T = {
   imported: n => `Imported ${n} recipe${n === 1 ? '' : 's'}`, exported: 'Backup saved to your downloads',
   badFile: "That file doesn't look like an Easy Recipes backup", removed: 'Removed from your cookbook', addedBook: 'Saved to your cookbook',
   photoBy: 'Photo: TheMealDB community',
+  servingsLbl: 'Servings', settings: 'Settings',
+  servHintKnown: (b, d) => `The original recipe serves ${b}.` + (d ? ` Your default is ${d} — change it in Settings.` : ''),
+  servHintGuess: d => `The original recipe doesn't say how many it serves, so we assume 4.` + (d ? ` Your default is ${d}.` : ''),
+  defServ: 'Default servings', defServHint: 'Every recipe opens with this many servings. You can still change it on each recipe — for a guest, or when cooking just for you.',
+  asRecipe: 'As in the recipe', defUnits: 'Units', about: 'About',
+  aboutText: 'Easy Recipes is free, has no ads and no account. Your cookbook and settings stay on this phone.',
+  srcMealDB: 'This recipe comes from <a href="https://www.themealdb.com" target="_blank" rel="noopener noreferrer">TheMealDB</a>, a free recipe database made by its community.',
+  srcHouseOwn: 'Made by Easy Recipes 🐣',
+  srcHouseBy: n => `Recipe by ${n}, shared with Easy Recipes 🐣`,
   tips: 'Tips & notes', house: 'House recipes', moreCuisines: 'More cuisines', lessCuisines: 'Show fewer', home: 'Home', houseHint: 'Written for Easy Recipes, with doses and timers built in.',
   by: 'Recipe by', byShort: 'by',
   shareTitle: 'Got a recipe you love?',
-  shareText: "Send it by email. If it's chosen, it will be published here as a House recipe, with your name.",
+  shareText: "Send it by email, with a photo of your dish. If it's chosen, it will be published here with your name. By sending it, you allow Easy Recipes to publish your recipe, your photo and the name you choose.",
   shareBtn: 'Send your recipe',
   shareSubject: 'My recipe for Easy Recipes',
-  shareBody: 'Recipe name:\n\nServes:\n\nIngredients (with quantities):\n\n\nSteps:\n\n\nName to show as the author:\n\n'
-    + '[ ] This recipe is my own, and I am happy for Easy Recipes to publish it with the name above.\n',
+  shareBody: [
+    'Hi Easy Recipes!', '', 'Here is my recipe.', '',
+    'Recipe name:', '', 'Serves (how many people):', '', 'Total time:', '',
+    'Categories (e.g. Pasta, Dessert, Vegetarian, Vegan, Starter, First courses, Complete meal):', '',
+    'Cuisine (e.g. Italian, Mexican, Indian — or leave empty):', '',
+    'Ingredients (with quantities):', '', '', 'Steps:', '', '', 'Tips (optional):', '', '',
+    'Name to show as the author (your name or a nickname):', '',
+    '📷 Please attach a photo of your dish, taken by you.', '', '—',
+    'By sending this email, I confirm that this recipe and photo are my own, and I allow Easy Recipes to publish them in the app '
+    + '(adapted to the app\'s format) together with the author name above. I can ask for them to be removed at any time by replying to this address.',
+  ].join('\n'),
   fromMealDB: 'From TheMealDB', fromWB: 'From the Wikibooks Cookbook',
   servings: 'Serves', time: 'Time',
   wbOpen: 'Open on Wikibooks', wbHistory: 'authors',
@@ -200,21 +218,26 @@ function findDurations(text) {
 }
 
 /* --- Doses: scaling quantities --- */
-const GLYPH = [[.25, '¼'], [1 / 3, '⅓'], [.5, '½'], [2 / 3, '⅔'], [.75, '¾']];
+const GLYPH = [[.125, '⅛'], [.25, '¼'], [1 / 3, '⅓'], [.5, '½'], [2 / 3, '⅔'], [.75, '¾']];
 function fmtQty(v) {
   if (v >= 10) return String(Math.round(v));
   const whole = Math.floor(v), f = v - whole;
-  if (f < 0.06) return String(whole || (v > 0 ? '¼' : 0));
+  if (f < 0.06) return String(whole || (v > 0 ? '⅛' : 0));
   if (f > 0.94) return String(whole + 1);
   for (const [g, s] of GLYPH) if (Math.abs(f - g) < 0.06) return (whole ? whole : '') + s;
   return String(Math.round(v * 10) / 10);
 }
 function scaleMeasure(measure, mult) {
   if (!measure || mult === 1) return measure;
-  return measure.replace(/\d+\s+\d+\/\d+|\d+\/\d+|\d+(?:[.,]\d+)?\s*[½¼¾⅓⅔]?|[½¼¾⅓⅔]/g, tok => {
+  return measure.replace(/\d+\s+\d+\/\d+|\d+\/\d+|\d+(?:[.,]\d+)?\s*[½¼¾⅓⅔]?|[½¼¾⅓⅔]/g, (tok, off, str) => {
     const v = parseNum(tok);
     if (!isFinite(v)) return tok;
     const trailingSpace = /\s$/.test(tok) ? ' ' : '';
+    // grams and millilitres read better as plain numbers: 6.7 g, 333 g (not 6⅔ g)
+    if (/^\s*(?:g|gr|grams?|kg|mg|ml|cl|dl|l)\b/i.test(str.slice(off + tok.length))) {
+      const x = v * mult;
+      return (x < 10 ? String(Math.round(x * 10) / 10) : String(Math.round(x))) + trailingSpace;
+    }
     return fmtQty(v * mult) + trailingSpace;
   });
 }
@@ -433,7 +456,7 @@ const thumbOf = (m, size) => m._kind ? (m.strMealThumb || '') : thumb(m.strMealT
 function cardHTML(m) {
   return `<a class="card" href="${mealHref(m.idMeal)}">
     ${picHTML(thumbOf(m, 'medium'), 'ph', m.strMeal)}
-    <span class="t">${esc(m.strMeal)}${m._author ? `<span class="by">${T.byShort} ${esc(m._author)}</span>` : ''}</span></a>`;
+    <span class="t">${esc(m.strMeal)}</span></a>`;
 }
 
 async function viewHome(params) {
@@ -472,11 +495,14 @@ async function viewHome(params) {
 
   try {
     const [cats, areas] = await Promise.all([api('categories.php'), api('list.php?a=list')]);
-    $('#cats').innerHTML = (cats.categories || []).map(c =>
+    const mdbCats = (cats.categories || []).map(c => c.strCategory.toLowerCase());
+    const extra = [...new Set(['First courses', 'Second courses', ...(await loadHouse()).flatMap(m => m._cats)])].filter(c => !mdbCats.includes(c.toLowerCase())).sort();
+    $('#cats').innerHTML = extra.map(c => `<a class="chip no-img" href="#/browse/c/${encodeURIComponent(c)}">${esc(c)}</a>`).join('') + (cats.categories || []).map(c =>
       `<a class="chip" href="#/browse/c/${encodeURIComponent(c.strCategory)}"><img src="${esc(c.strCategoryThumb)}" alt="" loading="lazy">${esc(c.strCategory)}</a>`).join('');
     let names = (areas.meals || []).map(a => a.strArea).filter(a => a && a !== 'Unknown').sort();
     const counts = await areaCounts().catch(() => null);
-    if (counts) names = names.filter(a => counts[a] > 0);
+    const houseAreas = (await loadHouse()).map(m => m.strArea).filter(Boolean);
+    if (counts) names = names.filter(a => counts[a] > 0 || houseAreas.includes(a));
     renderAreas(names);
   } catch {
     $('#cats').innerHTML = '';
@@ -504,24 +530,28 @@ function renderAreas(names, open) {
   const m = $('#moreAreas'); if (m) m.addEventListener('click', () => renderAreas(names, !open));
 }
 
+/* One list, all sources mixed, A–Z. The source is written at the end of each recipe. */
+async function mergedHTML(sources) {
+  const res = await Promise.allSettled(sources);
+  const ok = res.filter(r => r.status === 'fulfilled');
+  if (!ok.length) return `<p class="hint">${T.offline}</p>`;
+  const seen = new Set(), all = [];
+  ok.forEach(r => r.value.forEach(m => { const k = m.strMeal.trim().toLowerCase() + '|' + (m._kind || 'mdb'); if (!seen.has(k)) { seen.add(k); all.push(m); } }));
+  all.sort((a, b) => a.strMeal.localeCompare(b.strMeal, 'en', { sensitivity: 'base' }));
+  return all.length ? `<p class="hint count">${all.length} ${all.length === 1 ? 'recipe' : 'recipes'}</p><div class="grid">${all.map(cardHTML).join('')}</div>` : emptyHTML(T.noResults);
+}
 async function runSearch(q, by) {
   const box = $('#results');
-  const group = (id, title) => `<section class="section" id="${id}"><div class="section-head"><h2>${title}</h2></div><div class="g">${loadingHTML}</div></section>`;
-  box.innerHTML = `<div id="r-house"></div>${group('r-mdb', T.fromMealDB)}${group('r-wb', T.fromWB)}`;
-  const fill = (id, meals, failed) => {
-    const el = $('#' + id + ' .g'); if (!el) return;
-    el.innerHTML = failed ? `<p class="hint">${T.offline}</p>` : meals.length ? `<div class="grid">${meals.map(cardHTML).join('')}</div>` : `<p class="hint">${T.noResults}</p>`;
-  };
-  loadHouse().then(list => {
-    const hits = list.filter(m => houseMatches(m, q, by));
-    const el = $('#r-house');
-    if (el && hits.length) el.innerHTML = `<section class="section"><div class="section-head"><h2>${T.house}</h2></div><div class="grid">${hits.map(cardHTML).join('')}</div></section>`;
-  });
+  box.innerHTML = `<section class="section"><div class="section-head"><h2>${T.results}</h2></div><div class="g">${loadingHTML}</div></section>`;
   const path = by === 'ing'
     ? 'filter.php?i=' + encodeURIComponent(q.toLowerCase().replace(/\s+/g, '_'))
     : 'search.php?s=' + encodeURIComponent(q);
-  api(path).then(d => fill('r-mdb', d.meals || []), () => fill('r-mdb', [], true));
-  wbSearch(q).then(m => fill('r-wb', m), () => fill('r-wb', [], true));
+  const html = await mergedHTML([
+    loadHouse().then(list => list.filter(m => houseMatches(m, q, by))),
+    api(path).then(d => d.meals || []),
+    wbSearch(q),
+  ]);
+  const el = $('#results .g'); if (el) el.innerHTML = html;
 }
 
 async function renderSurprise(fresh) {
@@ -544,19 +574,56 @@ async function renderSurprise(fresh) {
   } catch { box.innerHTML = ''; }
 }
 
+const HOUSE_ONLY = new Set(['complete meal', 'miscellaneous']);
+/* Course categories collect recipes from every source */
+const COURSES = {
+  'first courses': { mdb: ['Pasta'], wb: ['pasta', 'risotto', 'soup'] },
+  'second courses': { mdb: ['Beef', 'Chicken', 'Lamb', 'Pork', 'Seafood', 'Goat'], wb: [] },
+};
 async function viewBrowse(kind, value) {
   view.innerHTML = `
     <h1 style="margin:6px 0 4px">${esc(value)}</h1>
-    <section class="section" style="margin-top:14px"><div class="section-head"><h2>${T.fromMealDB}</h2></div><div id="list">${loadingHTML}</div></section>
-    ${value === 'Miscellaneous' ? '' : `<section class="section"><div class="section-head"><h2>${T.fromWB}</h2></div><div id="wblist">${loadingHTML}</div></section>`}
+    <div id="list">${loadingHTML}</div>
     ${creditsHTML()}`;
-  api(`filter.php?${kind}=${encodeURIComponent(value)}`).then(data => {
-    const meals = (data.meals || []).sort((a, b) => a.strMeal.localeCompare(b.strMeal));
-    $('#list').innerHTML = meals.length ? `<div class="grid">${meals.map(cardHTML).join('')}</div>` : `<p class="hint">${T.noResults}</p>`;
-  }, () => { $('#list').innerHTML = `<p class="hint">${T.offline}</p>`; });
-  if (value !== 'Miscellaneous') wbSearch(value).then(m => {
-    const el = $('#wblist'); if (el) el.innerHTML = m.length ? `<div class="grid">${m.map(cardHTML).join('')}</div>` : `<p class="hint">${T.noResults}</p>`;
-  }, () => { const el = $('#wblist'); if (el) el.innerHTML = `<p class="hint">${T.offline}</p>`; });
+  const course = kind === 'c' && COURSES[value.toLowerCase()];
+  const html = await mergedHTML(course ? [
+    loadHouse().then(list => list.filter(m => houseInBrowse(m, kind, value))),
+    ...course.mdb.map(c => api('filter.php?c=' + encodeURIComponent(c)).then(d => d.meals || [])),
+    ...course.wb.map(q => wbSearch(q)),
+  ] : [
+    loadHouse().then(list => list.filter(m => houseInBrowse(m, kind, value))),
+    api(`filter.php?${kind}=${encodeURIComponent(value)}`).then(d => d.meals || []),
+    HOUSE_ONLY.has(value.toLowerCase()) ? Promise.resolve([]) : wbSearch(value),
+  ]);
+  const el = $('#list'); if (el) el.innerHTML = html;
+}
+
+/* Settings: default servings + units. Stored on this phone only. */
+function viewSettings() {
+  const sv = [0, 1, 2, 3, 4, 5, 6, 8];
+  view.innerHTML = `
+    <h1 style="margin:6px 0 14px">${T.settings}</h1>
+    <div class="box"><h2>${T.defServ}</h2>
+      <div class="opts set-opts" role="group" aria-label="${T.defServ}">
+        ${sv.map(n => `<button type="button" data-def="${n}" aria-pressed="${defServings === n}">${n ? n : T.asRecipe}</button>`).join('')}
+      </div><p class="hint">${T.defServHint}</p></div>
+    <div class="box"><h2>${T.defUnits}</h2>
+      <div class="opts set-opts" role="group" aria-label="${T.defUnits}">
+        ${[['orig', T.uOrig], ['metric', T.uMetric], ['us', T.uUS]].map(([k, l]) => `<button type="button" data-units="${k}" aria-pressed="${units === k}">${l}</button>`).join('')}
+      </div><p class="hint">${T.unitsHint}</p></div>
+    <div class="box"><h2>${T.about}</h2><p class="hint" style="font-size:1rem">${T.aboutText}</p>
+      ${CONTACT_EMAIL ? `<p class="hint" style="font-size:1rem">✉️ <a href="mailto:${CONTACT_EMAIL}">${CONTACT_EMAIL}</a></p>` : ''}</div>
+    ${creditsHTML()}`;
+  $$('[data-def]').forEach(b => b.addEventListener('click', () => {
+    defServings = +b.dataset.def; store('er.servings', defServings);
+    recipeState.forEach(st => { st.serv = null; });
+    $$('[data-def]').forEach(x => x.setAttribute('aria-pressed', x === b));
+    toast(defServings ? `Recipes now open for ${defServings}` : 'Recipes open as written');
+  }));
+  $$('[data-units]').forEach(b => b.addEventListener('click', () => {
+    units = b.dataset.units; store('er.units', units);
+    $$('[data-units]').forEach(x => x.setAttribute('aria-pressed', x === b));
+  }));
 }
 
 /* House recipes screen */
@@ -674,7 +741,8 @@ function parseCooklang(src, slug) {
   }
   return {
     idMeal: 'my:' + slug, strMeal: meta.title || slug.replace(/[-_]+/g, ' '),
-    strMealThumb: meta.image ? (/^https?:\/\//.test(meta.image) ? meta.image : 'my-recipes/' + meta.image.replace(/^\.?\//, '')) : '', strArea: meta.cuisine || '', strCategory: meta.category || meta.course || '',
+    strMealThumb: meta.image ? (/^https?:\/\//.test(meta.image) ? meta.image : 'my-recipes/' + meta.image.replace(/^\.?\//, '')) : '', strArea: meta.cuisine || '', strCategory: (meta.category || meta.course || '').split(',')[0].trim(),
+    _cats: (meta.category || meta.course || '').split(',').map(c => c.trim()).filter(Boolean),
     strTags: meta.tags || '', strSource: meta.source || '', strYoutube: '', strInstructions: '',
     _kind: 'house', _ings: ingredients.map(({ name, measure, fixed }) => ({ name, measure, fixed })), _steps: steps,
     _desc: meta.description || '', _servings: meta.servings || '', _time: meta.time || meta['total time'] || '',
@@ -695,10 +763,14 @@ function loadHouse() {
   })();
   return houseP;
 }
+function houseInBrowse(meal, kind, value) {
+  const v = value.toLowerCase();
+  return kind === 'a' ? meal.strArea.toLowerCase() === v : meal._cats.some(c => c.toLowerCase() === v);
+}
 function houseMatches(meal, q, by) {
   const n = q.toLowerCase();
   if (by === 'ing') return meal._ings.some(i => i.name.toLowerCase().includes(n));
-  return [meal.strMeal, meal.strCategory, meal.strArea, meal.strTags].join(' ').toLowerCase().includes(n);
+  return [meal.strMeal, meal._cats.join(' '), meal.strArea, meal.strTags].join(' ').toLowerCase().includes(n);
 }
 
 /* ---------- Wikibooks Cookbook (live, CC BY-SA 4.0) ---------- */
@@ -909,7 +981,18 @@ setInterval(() => $$('[data-at]').forEach(b => { b.textContent = clockAt(+b.data
 
 /* Per-recipe state kept while the app is open */
 const recipeState = new Map(); // id -> { mult, checked:Set, done:Set }
-const getState = id => { if (!recipeState.has(id)) recipeState.set(id, { mult: 1, checked: new Set(), done: new Set() }); return recipeState.get(id); };
+const getState = id => { if (!recipeState.has(id)) recipeState.set(id, { serv: null, checked: new Set(), done: new Set() }); return recipeState.get(id); };
+let defServings = load('er.servings', 0);   // 0 = as in the recipe
+/* How many people the original recipe serves (TheMealDB doesn't say → assume 4) */
+function baseServings(meal) {
+  const m = String(meal._servings || '').match(/\d+/);
+  return m && +m[0] > 0 ? { n: +m[0], known: true } : { n: 4, known: false };
+}
+function servingsFor(meal) {
+  const st = getState(meal.idMeal), base = baseServings(meal);
+  if (!st.serv) st.serv = defServings || base.n;
+  return { serv: st.serv, base, mult: st.serv / base.n };
+}
 
 const wbMemo = new Map();
 async function getMeal(id) {
@@ -926,7 +1009,8 @@ async function getMeal(id) {
 function makeCtx(meal) {
   const ings = getIngredients(meal);
   const steps = Array.isArray(meal._steps) ? meal._steps : splitSteps(meal.strInstructions);
-  return { id: meal.idMeal, ings, matchers: buildMatchers(ings), steps, mult: getState(meal.idMeal).mult };
+  const sv = servingsFor(meal);
+  return { id: meal.idMeal, ings, matchers: buildMatchers(ings), steps, mult: sv.mult, serv: sv.serv };
 }
 
 async function viewMeal(id) {
@@ -935,7 +1019,6 @@ async function viewMeal(id) {
   try { meal = await getMeal(id); } catch { view.innerHTML = emptyHTML(T.offline); return; }
   if (!meal) { view.innerHTML = emptyHTML(T.noResults); return; }
   const st = getState(id);
-  const MULTS = [0.5, 1, 1.5, 2, 3];
   const tags = (meal.strTags || '').split(',').map(s => s.trim()).filter(Boolean).slice(0, 3);
 
   view.innerHTML = `
@@ -947,16 +1030,12 @@ async function viewMeal(id) {
         <button class="icon-btn" type="button" id="save" aria-pressed="${isSaved(id)}" aria-label="${T.save}">${isSaved(id) ? ICON.heartFull : ICON.heart}</button>
       </div>
     </div>
-    ${meal._kind ? (meal._photoBy && meal.strMealThumb ? `<p class="photo-credit">Photo: ${esc(meal._photoBy)}</p>` : '') : `<p class="photo-credit">${T.photoBy}</p>`}
+    ${meal._kind ? '' : `<p class="photo-credit">${T.photoBy}</p>`}
     <h1 class="recipe-title">${esc(meal.strMeal)}</h1>
-    ${meal._author ? `<p class="byline">${T.by} ${meal._authorUrl
-      ? `<a href="${esc(meal._authorUrl)}" target="_blank" rel="noopener noreferrer nofollow">${esc(meal._author)}</a>`
-      : `<strong>${esc(meal._author)}</strong>`}</p>` : ''}
     <div class="tags">
       ${meal.strArea && meal.strArea !== 'Unknown' ? `<span class="tag">${esc(meal.strArea)}</span>` : ''}
-      ${meal.strCategory ? `<span class="tag p">${esc(meal.strCategory)}</span>` : ''}
+      ${(meal._cats || (meal.strCategory ? [meal.strCategory] : [])).map(c => `<span class="tag p">${esc(c)}</span>`).join('')}
       ${tags.map(t => `<span class="tag o">${esc(t)}</span>`).join('')}
-      ${meal._servings ? `<span class="tag y">${T.servings} ${esc(meal._servings)}</span>` : ''}
       ${meal._time ? `<span class="tag y">⏱ ${esc(meal._time)}</span>` : ''}
     </div>
     ${meal._desc ? `<p class="recipe-desc">${esc(meal._desc)}</p>` : ''}
@@ -965,10 +1044,12 @@ async function viewMeal(id) {
 
     <div class="box">
       <div class="batch"><h2>${T.batch}</h2>
-        <div class="opts" role="group" aria-label="${T.batch}">
-          ${MULTS.map(m => `<button type="button" data-mult="${m}" aria-pressed="${st.mult === m}">${fmtQty(m)}×</button>`).join('')}
+        <div class="stepper" role="group" aria-label="${T.batch}">
+          <button type="button" data-serv="-1" aria-label="One serving less">−</button>
+          <output id="servN" aria-live="polite">${servingsFor(meal).serv}</output>
+          <button type="button" data-serv="1" aria-label="One serving more">+</button>
         </div></div>
-      <p class="hint">${T.batchHint}</p>
+      <p class="hint">${baseServings(meal).known ? T.servHintKnown(baseServings(meal).n, defServings) : T.servHintGuess(defServings)} ${T.batchHint}</p>
       <div class="batch units-row"><h2>${T.units}</h2>
         <div class="opts" role="group" aria-label="${T.units}">
           ${[['orig', T.uOrig], ['metric', T.uMetric], ['us', T.uUS]].map(([k, l]) => `<button type="button" data-units="${k}" aria-pressed="${units === k}">${l}</button>`).join('')}
@@ -985,6 +1066,9 @@ async function viewMeal(id) {
       ${meal.strSource ? `<a class="btn green small" href="${esc(meal.strSource)}" target="_blank" rel="noopener noreferrer">${ICON.link} ${isWB(id) ? T.wbOpen : T.original}</a>` : ''}
       ${meal.strYoutube ? `<a class="btn pink small" href="${esc(meal.strYoutube)}" target="_blank" rel="noopener noreferrer">${ICON.video} ${T.video}</a>` : ''}
     </div>
+    ${!meal._kind ? `<p class="src-credit">${T.srcMealDB}</p>` : ''}
+    ${isHouse(id) ? `<p class="src-credit house">${!meal._author || meal._author === 'Easy Recipes' ? T.srcHouseOwn
+      : T.srcHouseBy(meal._authorUrl ? `<a href="${esc(meal._authorUrl)}" target="_blank" rel="noopener noreferrer nofollow">${esc(meal._author)}</a>` : `<strong>${esc(meal._author)}</strong>`)}${meal._photoBy && meal.strMealThumb ? ` · Photo: ${esc(meal._photoBy)}` : ''}</p>` : ''}
     ${isWB(id) ? `<p class="wb-credit">${T.wbCredit(`<a href="${esc(meal.strSource)}" target="_blank" rel="noopener noreferrer">“${esc(meal.strMeal)}”</a>`, `<a href="${esc(meal.strSource)}?action=history" target="_blank" rel="noopener noreferrer">${T.wbHistory}</a>`)}</p>` : ''}
     </div></div>
     ${creditsHTML()}`;
@@ -1022,9 +1106,9 @@ async function viewMeal(id) {
     $$('[data-units]').forEach(x => x.setAttribute('aria-pressed', x === b));
     render();
   }));
-  $$('[data-mult]').forEach(b => b.addEventListener('click', () => {
-    st.mult = +b.dataset.mult;
-    $$('[data-mult]').forEach(x => x.setAttribute('aria-pressed', x === b));
+  $$('[data-serv]').forEach(b => b.addEventListener('click', () => {
+    st.serv = Math.min(30, Math.max(1, servingsFor(meal).serv + +b.dataset.serv));
+    $('#servN').textContent = st.serv;
     render();
   }));
   $('#ings').addEventListener('change', e => {
@@ -1065,7 +1149,7 @@ async function viewCook(id, stepParam) {
         </div>
         <div class="progress" aria-hidden="true"><div style="width:${((i + 1) / ctx.steps.length) * 100}%"></div></div>
         <div class="cook-step" aria-live="polite">
-          <span class="kicker">${T.step} ${i + 1} ${T.of} ${ctx.steps.length}${ctx.mult !== 1 ? ` · ${fmtQty(ctx.mult)}×` : ''}</span>
+          <span class="kicker">${T.step} ${i + 1} ${T.of} ${ctx.steps.length}${` · ${ctx.serv} ${ctx.serv === 1 ? 'serving' : 'servings'}`}</span>
           ${stepHTML(ctx.steps[i], ctx, i)}
         </div>
         <div class="cook-nav">
@@ -1202,7 +1286,7 @@ function route() {
   navDepth++;
   document.body.classList.toggle('page-meal', parts[0] === 'meal');
   document.body.classList.toggle('page-done', parts[0] === 'done');
-  const tab = parts[0] === 'saved' ? 'saved' : 'explore';
+  const tab = parts[0] === 'saved' ? 'saved' : parts[0] === 'settings' ? 'settings' : 'explore';
   $$('.tabbar a').forEach(a => a.dataset.tab === tab ? a.setAttribute('aria-current', 'page') : a.removeAttribute('aria-current'));
   const fresh = view.cloneNode(false); view.replaceWith(fresh); // drop old listeners
   view = fresh;
@@ -1212,6 +1296,7 @@ function route() {
   else if (parts[0] === 'done' && parts[1]) viewDone(parts[1]);
   else if (parts[0] === 'saved') viewSaved();
   else if (parts[0] === 'house') viewHouse();
+  else if (parts[0] === 'settings') viewSettings();
   else viewHome(params);
   if (parts[0] !== 'cook') window.scrollTo(0, 0);
 }

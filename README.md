@@ -7,8 +7,9 @@ Doses are repeated inside every step, and timers are ready right where you need 
 
 ## Features
 
-- Recipes from three places: **House recipes** written for the app, **TheMealDB** (with photos)
-  and the **Wikibooks Cookbook**. Search by name or by ingredient, browse categories and cuisines, or tap "Surprise me".
+- Recipes from three places, mixed together in one A–Z list: **House recipes** written for the app,
+  **TheMealDB** (with photos) and the **Wikibooks Cookbook**. The end of each recipe says where it comes from.
+  Search by name or by ingredient, browse categories and cuisines, or tap "Surprise me".
 - **Doses inside every step**: next to each ingredient mentioned in a step, you see its dose.
   If the step already says how much (e.g. "2 tablespoons of water"), no extra dose is added.
 - **Ready-made timers**: every duration in the text ("cook for 5 minutes", "1 to 2 minutes") is a button.
@@ -16,7 +17,9 @@ Doses are repeated inside every step, and timers are ready right where you need 
   show the clock time to come back at instead, with a reminder to set a phone timer too.
   For ranges like "X to Y", the timer uses the shorter time, so you check early.
 - **Units**: switch between the recipe as written, metric (g, ml, °C) and US (oz, lb, cups, °F).
-- **Batch size**: ½×, 1×, 1½×, 2× or 3× rescales every dose, including the ones inside the steps.
+- **Servings**: set your usual number once in Settings (e.g. 2) and every recipe opens for that many.
+  Change it on any recipe with − / + (a guest, or just you): every dose updates, steps included.
+  TheMealDB recipes don't say how many they serve, so the app assumes 4.
 - **Cook mode**: one step at a time, big text, and the screen stays on.
 - **My cookbook**: save recipes with the heart, add your own notes, and use them offline.
 - **The chick** welcomes you the first time, suggests recipes, keeps you company when your cookbook is empty
@@ -84,6 +87,11 @@ At the top of each `.cook` file, lines starting with `>>` describe the recipe. O
 the rest is optional. The author's name appears on the card and page ("Recipe by …"), and the author link
 must start with `https://`. Photos go in `my-recipes/photos` (a light `.webp` or `.jpg`, about 1200 px wide).
 Lines starting with a single `>` become "Tips & notes".
+`category` can list several categories separated by commas; new ones (like "First courses") appear
+in the Categories list automatically. "First courses" also collects TheMealDB Pasta and Wikibooks pasta,
+risotto and soup recipes; "Second courses" collects TheMealDB Beef, Chicken, Lamb, Pork, Seafood and Goat. `servings` should be a number, so default servings work.
+If `author` is "Easy Recipes" (or empty), the recipe shows "Made by Easy Recipes"; any other name shows
+"Recipe by …, shared with Easy Recipes".
 
 ```
 >> title: Nonna's lemon cake
@@ -94,7 +102,7 @@ Lines starting with a single `>` become "Tips & notes".
 >> servings: 8
 >> time: 1 hour
 >> cuisine: Italian
->> category: Dessert
+>> category: Dessert, Vegetarian
 >> description: A soft, fragrant cake for Sunday breakfast.
 
 Mix @flour{250%g} and @sugar{200%g}. Bake for ~{40%minutes}.
@@ -104,15 +112,17 @@ Mix @flour{250%g} and @sugar{200%g}. Bake for ~{40%minutes}.
 
 ### Recipes from other people
 
-Users can't post recipes in the app. To let people send you theirs, write your email in `js/app.js`
-(`const CONTACT_EMAIL = 'you@example.com';`): a "Send your recipe" button then appears under House recipes
-and opens a ready-made email. You decide what to publish. Before publishing, make sure the person agreed,
-that the recipe is their own and not copied from a book or website, and which name they want shown.
+Users can't post recipes in the app. The "Send your recipe" button under House recipes opens a ready-made
+email to the address in `js/app.js` (`const CONTACT_EMAIL`), asking for the recipe, servings, time,
+categories, cuisine, the author name and a photo. The email states that by sending it, the person confirms
+the recipe and photo are their own and allows Easy Recipes to publish them with that name, and that they can
+ask for removal at any time. You decide what to publish; if something looks copied from a book or website,
+don't publish it.
 Leave the email empty (`''`) to hide the button.
 
 ## Updating the app
 
-Upload the changed files to GitHub, then in `sw.js` change `er-v9` to `er-v10` (then `er-v11`, and so on),
+Upload the changed files to GitHub, then in `sw.js` change `er-v11` to `er-v12` (then `er-v13`, and so on),
 so phones download the new version.
 
 ## Translating the interface
