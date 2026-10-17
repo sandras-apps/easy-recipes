@@ -1,6 +1,6 @@
 /* Easy Recipes service worker: makes the app work offline.
    Bump VERSION whenever you change the app files, so phones get the update. */
-const VERSION = 'er-v2';
+const VERSION = 'er-v6';
 const SHELL = [
   './', 'index.html', 'css/styles.css', 'js/app.js', 'manifest.webmanifest',
   'icons/chick-hello.webp', 'icons/chick-happy.webp', 'icons/chick-cheer.webp', 'icons/chick-spoon.webp',
@@ -36,6 +36,22 @@ self.addEventListener('fetch', e => {
       if (res.ok) { const copy = res.clone(); caches.open(API_CACHE).then(c => c.put(req, copy)); }
       return res;
     }).catch(() => caches.match(req).then(r => r || Response.error())));
+    return;
+  }
+  // Wikibooks Cookbook pages: network first, saved copy when offline
+  if (url.hostname === 'en.wikibooks.org' && url.pathname.startsWith('/w/api.php')) {
+    e.respondWith(fetch(req).then(res => {
+      if (res.ok) { const copy = res.clone(); caches.open(API_CACHE).then(c => c.put(req, copy)); }
+      return res;
+    }).catch(() => caches.match(req).then(r => r || Response.error())));
+    return;
+  }
+  // House recipes: always look for new ones first
+  if (url.origin === self.location.origin && url.pathname.includes('/my-recipes/')) {
+    e.respondWith(fetch(req).then(res => {
+      if (res.ok) { const copy = res.clone(); caches.open(VERSION).then(c => c.put(req, copy)); }
+      return res;
+    }).catch(() => caches.match(req, { ignoreSearch: true }).then(r => r || Response.error())));
     return;
   }
   // Photos: cache first (they never change)
