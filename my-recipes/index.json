@@ -1,5 +1,7 @@
 {
   "recipes": [
-    "pasta-al-pomodoro.cook"
+    "pasta-al-pomodoro.cook",
+    "roasted-tomato-soup.cook",
+    "pan-pizza.cook"
   ]
 }

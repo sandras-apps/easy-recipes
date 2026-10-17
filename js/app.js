@@ -20,6 +20,11 @@ const T = {
   offline: "Can't reach the recipe kitchen right now. Check your connection — your saved recipes still work offline.",
   back: 'Back', save: 'Save', saved: 'Saved', ingredients: 'Ingredients', steps: 'Steps',
   batch: 'Batch size', batchHint: 'All doses update everywhere, steps included.',
+  units: 'Units', uOrig: 'As written', uMetric: 'Metric', uUS: 'US',
+  unitsHint: 'Metric: grams, ml, °C. US: ounces, pounds, cups, °F. Teaspoons and tablespoons stay the same; cups are converted by volume.',
+  backAt: 'back at', phoneHint: "Set a timer on your phone too — Easy Recipes can only ring while it's open.",
+  inAppHint: 'Timers ring only while Easy Recipes is open.',
+  backAtLong: t => `Come back at ${t}`,
   startCooking: 'Start cooking', original: 'Original recipe', video: 'Video',
   stepDone: 'Mark step as done', stepUndo: 'Undo',
   note: 'My notes', notePh: 'E.g. less salt next time, 5 extra minutes in my oven…',
@@ -33,12 +38,12 @@ const T = {
   welcomeTitle: 'Hi, chef!', welcomeGo: 'Show me a first recipe', welcomeSkip: 'Just let me explore',
   welcomePoints: [['🥄', 'Doses inside every step — no more back-and-forth'], ['⏱', 'Timers ready right where you need them'],
     ['💛', 'Save your favourites: no account, it all stays on your phone']],
-  awake: 'Screen stays on while you cook',
+  awake: 'Screen stays on — keep the app open so timers can ring',
   timerDone: 'Done!', stop: 'Stop', alreadyRunning: 'That timer is already running',
   imported: n => `Imported ${n} recipe${n === 1 ? '' : 's'}`, exported: 'Backup saved to your downloads',
   badFile: "That file doesn't look like an Easy Recipes backup", removed: 'Removed from your cookbook', addedBook: 'Saved to your cookbook',
   photoBy: 'Photo: TheMealDB community',
-  house: 'House recipes', houseHint: 'Written for Easy Recipes, with doses and timers built in.',
+  tips: 'Tips & notes', house: 'House recipes', moreCuisines: 'More cuisines', lessCuisines: 'Show fewer', home: 'Home', houseHint: 'Written for Easy Recipes, with doses and timers built in.',
   by: 'Recipe by', byShort: 'by',
   shareTitle: 'Got a recipe you love?',
   shareText: "Send it by email. If it's chosen, it will be published here as a House recipe, with your name.",
@@ -290,20 +295,18 @@ function stepHTML(text, ctx, stepIdx) {
   const marks = [...timers, ...ings].sort((a, b) => a.start - b.start);
   let html = '', pos = 0, tIdx = 0;
   for (const mk of marks) {
-    html += esc(text.slice(pos, mk.start));
+    html += textOut(text.slice(pos, mk.start));
     const piece = text.slice(mk.start, mk.end);
     if (mk.kind === 'timer') {
-      const key = `${ctx.id}:${stepIdx}:${tIdx++}`;
-      const running = timers_.some(t => t.key === key) ? ' running' : '';
-      html += `<button type="button" class="tbtn${running}" data-timer="${mk.sec}" data-key="${esc(key)}" data-step="${stepIdx + 1}" aria-label="Start timer: ${esc(piece)}">${esc(piece)}</button>`;
+      html += timerHTML(mk.sec, piece, `${ctx.id}:${stepIdx}:${tIdx++}`, stepIdx + 1);
     } else {
       const ing = ctx.ings[mk.i];
-      const dose = scaleMeasure(ing.measure, ctx.mult);
+      const dose = doseOut(ing.measure, ctx.mult, ing.fixed);
       html += `<span class="ing">${esc(piece)}</span>` + (dose && !mk.explicit ? `<span class="dose">${esc(dose)}</span>` : '');
     }
     pos = mk.end;
   }
-  return html + esc(text.slice(pos));
+  return html + textOut(text.slice(pos));
 }
 
 /* ============================================================
@@ -356,10 +359,10 @@ function updateAlarm() {
 }
 function stopAllRinging() { timers_ = timers_.filter(t => !t.ringing); saveTimers(); renderDock(); updateAlarm(); }
 
-function startTimer(sec, label, key) {
+function startTimer(sec, label, key, long) {
   unlockAudio();
   if (key && timers_.some(t => t.key === key)) { toast(T.alreadyRunning); return; }
-  timers_.push({ id: Math.random().toString(36).slice(2), key, label, total: sec, endAt: Date.now() + sec * 1000, paused: false, left: sec });
+  timers_.push({ id: Math.random().toString(36).slice(2), key, label, total: sec, endAt: Date.now() + sec * 1000, paused: false, left: sec, long: !!long });
   saveTimers(); renderDock(); markRunningButtons();
 }
 function tick() {
@@ -370,22 +373,25 @@ function tick() {
   if (changed) { renderDock(); updateAlarm(); }
   $$('#dock .timer').forEach(el => {
     const t = timers_.find(x => x.id === el.dataset.id);
-    if (t) $('.time', el).textContent = t.ringing ? T.timerDone : fmtTime(remaining(t));
+    if (t && !t.long) $('.time', el).textContent = t.ringing ? T.timerDone : fmtTime(remaining(t));
   });
   if (!timers_.length && tickHandle) { clearInterval(tickHandle); tickHandle = null; }
 }
 function renderDock() {
   const dock = $('#dock');
+  const atClock = t => new Date(t.endAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   dock.innerHTML = timers_.map(t => `
-    <div class="timer${t.ringing ? ' ringing' : ''}${t.paused ? ' paused' : ''}" data-id="${t.id}" role="timer">
+    <div class="timer${t.ringing ? ' ringing' : ''}${t.paused ? ' paused' : ''}${t.long ? ' long' : ''}" data-id="${t.id}" role="timer">
       <span class="lbl">${esc(t.label)}</span>
-      <span class="time">${t.ringing ? T.timerDone : fmtTime(remaining(t))}</span>
+      <span class="time">${t.ringing ? T.timerDone : t.long ? T.backAtLong(atClock(t)) : fmtTime(remaining(t))}</span>
       ${t.ringing
         ? `<button type="button" data-act="stop">${T.stop}</button>`
+        : t.long ? `<button type="button" data-act="cancel" aria-label="Remove reminder">${ICON.close}</button>`
         : `<button type="button" data-act="toggle" aria-label="${t.paused ? 'Resume' : 'Pause'}">${t.paused ? ICON.play : ICON.pause}</button>
            <button type="button" data-act="plus" aria-label="Add one minute">${ICON.plus1}</button>
            <button type="button" data-act="cancel" aria-label="Cancel timer">${ICON.close}</button>`}
-    </div>`).join('');
+    </div>`).join('')
+    + (timers_.length ? `<p class="dock-hint">${timers_.some(t => t.long) ? T.phoneHint : T.inAppHint}</p>` : '');
   if (timers_.length && !tickHandle) tickHandle = setInterval(tick, 250);
   // keep page content clear of the dock
   requestAnimationFrame(() => { document.documentElement.style.setProperty('--dock-h', (timers_.length ? dock.offsetHeight : 0) + 'px'); });
@@ -441,18 +447,18 @@ async function viewHome(params) {
     <div class="seg" role="group" aria-label="Search type">
       <button type="button" data-by="name" aria-pressed="${by === 'name'}">${T.byName}</button>
       <button type="button" data-by="ing" aria-pressed="${by === 'ing'}">${T.byIng}</button>
+      <a class="seg-link" href="#/house">🐣 ${T.house}</a>
     </div>
     <div id="results"></div>
-    <section class="section" id="house" hidden></section>
     <section class="section" id="surprise"></section>
     <section class="section"><div class="section-head"><h2>${T.categories}</h2></div><div class="chips" id="cats">${loadingHTML}</div></section>
     <section class="section"><div class="section-head"><h2>${T.cuisines}</h2></div><div class="chips" id="areas"></div></section>
     ${creditsHTML()}`;
 
   let searchBy = by;
-  $$('.seg button').forEach(b => b.addEventListener('click', () => {
+  $$('.seg button[data-by]').forEach(b => b.addEventListener('click', () => {
     searchBy = b.dataset.by;
-    $$('.seg button').forEach(x => x.setAttribute('aria-pressed', x === b));
+    $$('.seg button[data-by]').forEach(x => x.setAttribute('aria-pressed', x === b));
     $('#q').placeholder = searchBy === 'ing' ? 'e.g. chicken, garlic, salmon…' : T.searchPh;
   }));
   $('#sform').addEventListener('submit', e => {
@@ -463,23 +469,39 @@ async function viewHome(params) {
 
   if (q) runSearch(q, by);
   renderSurprise();
-  loadHouse().then(list => {
-    const box = $('#house'); if (!box || !list.length || q) return;
-    box.hidden = false;
-    box.innerHTML = `<div class="section-head"><h2>${T.house}</h2></div><p class="hint" style="margin:-6px 0 12px">${T.houseHint}</p>
-      <div class="grid">${list.map(cardHTML).join('')}</div>${shareHTML()}`;
-  });
 
   try {
     const [cats, areas] = await Promise.all([api('categories.php'), api('list.php?a=list')]);
     $('#cats').innerHTML = (cats.categories || []).map(c =>
       `<a class="chip" href="#/browse/c/${encodeURIComponent(c.strCategory)}"><img src="${esc(c.strCategoryThumb)}" alt="" loading="lazy">${esc(c.strCategory)}</a>`).join('');
-    $('#areas').innerHTML = (areas.meals || []).map(a => a.strArea).filter(a => a && a !== 'Unknown').sort()
-      .map(a => `<a class="chip no-img" href="#/browse/a/${encodeURIComponent(a)}">${esc(a)}</a>`).join('');
+    let names = (areas.meals || []).map(a => a.strArea).filter(a => a && a !== 'Unknown').sort();
+    const counts = await areaCounts().catch(() => null);
+    if (counts) names = names.filter(a => counts[a] > 0);
+    renderAreas(names);
   } catch {
     $('#cats').innerHTML = '';
     if (!q) $('#results').innerHTML = emptyHTML(T.offline);
   }
+}
+
+/* Which cuisines actually have recipes? Count them once a week (26 small requests, a–z). */
+async function areaCounts() {
+  const cached = load('er.areas', null);
+  if (cached && Date.now() - cached.t < 7 * 864e5) return cached.c;
+  const letters = 'abcdefghijklmnopqrstuvwxyz'.split('');
+  const res = await Promise.all(letters.map(l => api('search.php?f=' + l).catch(() => null)));
+  if (res.some(r => r === null)) throw new Error('partial');
+  const c = {};
+  res.forEach(r => (r.meals || []).forEach(m => { if (m.strArea) c[m.strArea] = (c[m.strArea] || 0) + 1; }));
+  store('er.areas', { t: Date.now(), c });
+  return c;
+}
+function renderAreas(names, open) {
+  const box = $('#areas'); if (!box) return;
+  const LIMIT = 12, show = open ? names : names.slice(0, LIMIT);
+  box.innerHTML = show.map(a => `<a class="chip no-img" href="#/browse/a/${encodeURIComponent(a)}">${esc(a)}</a>`).join('')
+    + (names.length > LIMIT ? `<button type="button" class="chip more" id="moreAreas">${open ? T.lessCuisines : T.moreCuisines + ` (${names.length - LIMIT})`}</button>` : '');
+  const m = $('#moreAreas'); if (m) m.addEventListener('click', () => renderAreas(names, !open));
 }
 
 async function runSearch(q, by) {
@@ -524,15 +546,25 @@ async function renderSurprise(fresh) {
 
 async function viewBrowse(kind, value) {
   view.innerHTML = `
-    <div class="section-head" style="margin-top:6px">
-      <button class="icon-btn" type="button" onclick="history.length > 1 ? history.back() : (location.hash='#/')" aria-label="${T.back}">${ICON.back}</button>
-      <h1 style="flex:1">${esc(value)}</h1></div>
-    <div id="list">${loadingHTML}</div>${creditsHTML()}`;
-  try {
-    const data = await api(`filter.php?${kind}=${encodeURIComponent(value)}`);
+    <h1 style="margin:6px 0 4px">${esc(value)}</h1>
+    <section class="section" style="margin-top:14px"><div class="section-head"><h2>${T.fromMealDB}</h2></div><div id="list">${loadingHTML}</div></section>
+    ${value === 'Miscellaneous' ? '' : `<section class="section"><div class="section-head"><h2>${T.fromWB}</h2></div><div id="wblist">${loadingHTML}</div></section>`}
+    ${creditsHTML()}`;
+  api(`filter.php?${kind}=${encodeURIComponent(value)}`).then(data => {
     const meals = (data.meals || []).sort((a, b) => a.strMeal.localeCompare(b.strMeal));
-    $('#list').innerHTML = meals.length ? `<div class="grid">${meals.map(cardHTML).join('')}</div>` : emptyHTML(T.noResults);
-  } catch { $('#list').innerHTML = emptyHTML(T.offline); }
+    $('#list').innerHTML = meals.length ? `<div class="grid">${meals.map(cardHTML).join('')}</div>` : `<p class="hint">${T.noResults}</p>`;
+  }, () => { $('#list').innerHTML = `<p class="hint">${T.offline}</p>`; });
+  if (value !== 'Miscellaneous') wbSearch(value).then(m => {
+    const el = $('#wblist'); if (el) el.innerHTML = m.length ? `<div class="grid">${m.map(cardHTML).join('')}</div>` : `<p class="hint">${T.noResults}</p>`;
+  }, () => { const el = $('#wblist'); if (el) el.innerHTML = `<p class="hint">${T.offline}</p>`; });
+}
+
+/* House recipes screen */
+async function viewHouse() {
+  view.innerHTML = `<h1 style="margin:6px 0 4px">${T.house}</h1><p class="hint" style="margin:0 0 14px">${T.houseHint}</p><div id="hlist">${loadingHTML}</div>${shareHTML()}${creditsHTML()}`;
+  const list = await loadHouse();
+  const el = $('#hlist'); if (!el) return;
+  el.innerHTML = list.length ? `<div class="grid">${list.map(cardHTML).join('')}</div>` : emptyHTML(T.noResults);
 }
 
 /* ============================================================
@@ -600,9 +632,14 @@ function parseCooklang(src, slug) {
     text = text.slice(fm[0].length);
   }
   text = text.replace(/\[-[\s\S]*?-\]/g, '');
+  const notes = [];
+  let lastNote = false;
   const lines = text.split('\n').filter(l => {
     const m = l.match(/^>>\s*([\w -]+?)\s*:\s*(.*)$/);
-    if (m) { meta[m[1].toLowerCase()] = m[2].trim(); return false; }
+    if (m) { meta[m[1].toLowerCase()] = m[2].trim(); lastNote = false; return false; }
+    const n = l.match(/^>(?!>)\s?(.*)$/);   // "> a tip" lines become notes
+    if (n) { if (n[1].trim()) notes.push(n[1].trim()); return false; }   // one "> line" = one tip
+    lastNote = false;
     return true;
   }).map(l => l.replace(/(^|\s)--\s.*$|^--.*$/, '$1'));
   const paras = lines.join('\n').split(/\n[ \t]*\n/).map(p => p.replace(/\s*\n\s*/g, ' ').trim()).filter(Boolean);
@@ -637,10 +674,11 @@ function parseCooklang(src, slug) {
   }
   return {
     idMeal: 'my:' + slug, strMeal: meta.title || slug.replace(/[-_]+/g, ' '),
-    strMealThumb: meta.image || '', strArea: meta.cuisine || '', strCategory: meta.category || meta.course || '',
+    strMealThumb: meta.image ? (/^https?:\/\//.test(meta.image) ? meta.image : 'my-recipes/' + meta.image.replace(/^\.?\//, '')) : '', strArea: meta.cuisine || '', strCategory: meta.category || meta.course || '',
     strTags: meta.tags || '', strSource: meta.source || '', strYoutube: '', strInstructions: '',
     _kind: 'house', _ings: ingredients.map(({ name, measure, fixed }) => ({ name, measure, fixed })), _steps: steps,
     _desc: meta.description || '', _servings: meta.servings || '', _time: meta.time || meta['total time'] || '',
+    _notes: notes, _photoBy: meta['photo by'] || '',
     _author: meta.author || '', _authorUrl: /^https:\/\//.test(meta['author url'] || meta.author_url || '') ? (meta['author url'] || meta.author_url) : '',
   };
 }
@@ -784,19 +822,90 @@ function shareHTML() {
 function tokensHTML(toks, ctx, stepIdx) {
   let html = '', tIdx = 0;
   for (const k of toks) {
-    if (k.t === 'text') html += esc(k.text);
+    if (k.t === 'text') html += textOut(k.text);
     else if (k.t === 'sec') html += `<strong class="step-sec">${esc(k.text)}</strong> `;
     else if (k.t === 'ing') {
-      const dose = k.fixed ? k.measure : scaleMeasure(k.measure, ctx.mult);
+      const dose = doseOut(k.measure, ctx.mult, k.fixed);
       html += `<span class="ing">${esc(k.name)}</span>` + (dose ? `<span class="dose">${esc(dose)}</span>` : '');
     } else if (k.t === 'timer') {
-      const key = `${ctx.id}:${stepIdx}:${tIdx++}`;
-      const running = timers_.some(t => t.key === key) ? ' running' : '';
-      html += `<button type="button" class="tbtn${running}" data-timer="${k.sec}" data-key="${esc(key)}" data-step="${stepIdx + 1}" aria-label="Start timer: ${esc(k.label)}">${esc(k.label)}</button>`;
+      html += timerHTML(k.sec, k.label, `${ctx.id}:${stepIdx}:${tIdx++}`, stepIdx + 1);
     }
   }
   return html;
 }
+
+/* ============================================================
+   UNITS — as written · metric · US
+   Metric turns cups, oz, lb, fl oz, pints and °F into ml, g and °C.
+   US turns g, kg, ml, l and °C into oz, lb, cups, spoons and °F.
+   Teaspoons and tablespoons stay as they are (they're used everywhere).
+   ============================================================ */
+let units = load('er.units', 'orig');
+const U_NUM = '(\\d+\\s+\\d+\\/\\d+|\\d+\\/\\d+|\\d+(?:[.,]\\d+)?\\s*[½¼¾⅓⅔]?|[½¼¾⅓⅔])';
+const U_DEF = [
+  ['fl\\.?\\s?oz', 'ml', 29.57, true], ['kg|kilograms?|kilos?', 'g', 1000, false], ['mg', 'g', 0.001, false],
+  ['g|grams?|gr', 'g', 1, false], ['oz|ounces?', 'g', 28.35, true], ['lbs?|pounds?', 'g', 453.6, true],
+  ['ml|millilit(?:er|re)s?', 'ml', 1, false], ['cl', 'ml', 10, false], ['dl', 'ml', 100, false], ['l|lit(?:er|re)s?', 'ml', 1000, false],
+  ['cups?', 'ml', 240, true], ['pints?|pt', 'ml', 473, true], ['quarts?|qt', 'ml', 946, true],
+  ['tablespoons?|tbsps?|tbs|tbl', 'ml', 15, null], ['teaspoons?|tsps?', 'ml', 5, null],
+];
+const U_RE = new RegExp(U_NUM + '(?:\\s*(?:-|–|to)\\s*' + U_NUM + ')?\\s*(' + U_DEF.map(d => d[0]).join('|') + ')(?![\\w])\\.?', 'gi');
+const unitInfo = u => U_DEF.find(d => new RegExp('^(?:' + d[0] + ')$', 'i').test(u.replace(/\.$/, '')));
+const roundM = v => v < 10 ? String(Math.round(v * 10) / 10) : v < 100 ? String(Math.round(v)) : String(Math.round(v / 5) * 5);
+function toMetric(a, b, kind) {
+  const big = Math.max(a, b || 0) >= 1000;
+  const u = kind === 'g' ? (big ? 'kg' : 'g') : (big ? 'l' : 'ml');
+  const f = v => big ? String(Math.round(v / 100) / 10) : roundM(v);
+  return f(a) + (b ? '–' + f(b) : '') + (u === 'g' || u === 'kg' ? u : ' ' + u);
+}
+function toUS(a, b, kind) {
+  const m = Math.max(a, b || 0);
+  let unit, div;
+  if (kind === 'g') {
+    if (m < 20) return roundM(a) + (b ? '–' + roundM(b) : '') + 'g';
+    [unit, div] = m >= 454 ? ['lb', 453.6] : ['oz', 28.35];
+  } else [unit, div] = m < 15 ? ['tsp', 5] : m < 60 ? ['tbsp', 15] : ['cup', 240];
+  const q = v => fmtQty(v / div);
+  const plural = unit === 'cup' && m / div > 1.05 ? 'cups' : unit;
+  return q(a) + (b ? '–' + q(b) : '') + ' ' + plural;
+}
+function convertUnits(str) {
+  if (units === 'orig' || !str) return str;
+  return String(str).replace(U_RE, (all, a, b, u) => {
+    const info = unitInfo(u); if (!info) return all;
+    const [, kind, factor, isUS] = info;
+    if (isUS === null) return all;                                   // spoons stay spoons everywhere
+    if (units === 'metric' && !isUS) return all;
+    if (units === 'us' && isUS) return all;
+    const na = parseNum(a), nb = b ? parseNum(b) : NaN;
+    if (!isFinite(na)) return all;
+    return units === 'metric' ? toMetric(na * factor, isFinite(nb) ? nb * factor : 0, kind)
+      : toUS(na * factor, isFinite(nb) ? nb * factor : 0, kind);
+  });
+}
+function convertTemps(s) {
+  if (units === 'orig') return s;
+  return String(s).replace(/(\d{2,3})(?:\s*(?:-|–|to)\s*(\d{2,3}))?\s*°\s*([CF])(?![a-z])/gi, (all, a, b, u) => {
+    u = u.toUpperCase();
+    if (units === 'us' && u === 'C') { const f = v => Math.round((v * 9 / 5 + 32) / 5) * 5; return f(+a) + (b ? '–' + f(+b) : '') + '°F'; }
+    if (units === 'metric' && u === 'F') { const c = v => Math.round((v - 32) * 5 / 9 / 5) * 5; return c(+a) + (b ? '–' + c(+b) : '') + '°C'; }
+    return all;
+  });
+}
+const textOut = s => esc(convertTemps(convertUnits(s)));
+const doseOut = (measure, mult, fixed) => convertUnits(fixed ? measure : scaleMeasure(measure, mult));
+
+/* ---------- Timer chips: short ones ring in the app, long ones say when to come back ---------- */
+const LONG_TIMER = 15 * 60;
+const clockAt = sec => new Date(Date.now() + sec * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+function timerHTML(sec, label, key, step) {
+  const running = timers_.some(t => t.key === key) ? ' running' : '';
+  if (sec > LONG_TIMER) {
+    return `<button type="button" class="tbtn long${running}" data-timer="${sec}" data-long="1" data-key="${esc(key)}" data-step="${step}" aria-label="${esc(label)}: come back at ${clockAt(sec)}">${esc(label)}<span class="back-at">${T.backAt} <b data-at="${sec}">${clockAt(sec)}</b></span></button>`;
+  }
+  return `<button type="button" class="tbtn${running}" data-timer="${sec}" data-key="${esc(key)}" data-step="${step}" aria-label="Start timer: ${esc(label)}">${esc(label)}</button>`;
+}
+setInterval(() => $$('[data-at]').forEach(b => { b.textContent = clockAt(+b.dataset.at); }), 20000);
 
 /* Per-recipe state kept while the app is open */
 const recipeState = new Map(); // id -> { mult, checked:Set, done:Set }
@@ -834,11 +943,11 @@ async function viewMeal(id) {
     <div class="hero${meal.strMealThumb ? '' : ' no-photo'}">
       ${picHTML(meal.strMealThumb || '', 'hero-pic', meal.strMeal, meal.strMeal)}
       <div class="top-actions">
-        <button class="icon-btn" type="button" id="back" aria-label="${T.back}">${ICON.back}</button>
+        <span></span>
         <button class="icon-btn" type="button" id="save" aria-pressed="${isSaved(id)}" aria-label="${T.save}">${isSaved(id) ? ICON.heartFull : ICON.heart}</button>
       </div>
     </div>
-    ${meal._kind ? '' : `<p class="photo-credit">${T.photoBy}</p>`}
+    ${meal._kind ? (meal._photoBy && meal.strMealThumb ? `<p class="photo-credit">Photo: ${esc(meal._photoBy)}</p>` : '') : `<p class="photo-credit">${T.photoBy}</p>`}
     <h1 class="recipe-title">${esc(meal.strMeal)}</h1>
     ${meal._author ? `<p class="byline">${T.by} ${meal._authorUrl
       ? `<a href="${esc(meal._authorUrl)}" target="_blank" rel="noopener noreferrer nofollow">${esc(meal._author)}</a>`
@@ -860,11 +969,17 @@ async function viewMeal(id) {
           ${MULTS.map(m => `<button type="button" data-mult="${m}" aria-pressed="${st.mult === m}">${fmtQty(m)}×</button>`).join('')}
         </div></div>
       <p class="hint">${T.batchHint}</p>
+      <div class="batch units-row"><h2>${T.units}</h2>
+        <div class="opts" role="group" aria-label="${T.units}">
+          ${[['orig', T.uOrig], ['metric', T.uMetric], ['us', T.uUS]].map(([k, l]) => `<button type="button" data-units="${k}" aria-pressed="${units === k}">${l}</button>`).join('')}
+        </div></div>
+      <p class="hint">${T.unitsHint}</p>
     </div>
 
     <div class="box"><h2>${T.ingredients}</h2><ul class="ing-list${meal._kind ? ' noimg' : ''}" id="ings"></ul></div>
     </div><div class="meal-main">
     <div class="box"><h2>${T.steps}</h2><ol class="steps" id="steps"></ol></div>
+    ${meal._notes && meal._notes.length ? `<div class="box tips"><h2>${T.tips}</h2><ul>${meal._notes.map(n => `<li>${esc(n)}</li>`).join('')}</ul></div>` : ''}
     <div id="notebox"></div>
     <div class="links">
       ${meal.strSource ? `<a class="btn green small" href="${esc(meal.strSource)}" target="_blank" rel="noopener noreferrer">${ICON.link} ${isWB(id) ? T.wbOpen : T.original}</a>` : ''}
@@ -880,7 +995,7 @@ async function viewMeal(id) {
       <li><label>
         <input type="checkbox" data-i="${i}" ${st.checked.has(i) ? 'checked' : ''}>
         ${meal._kind ? '' : `<img src="${ING_IMG + encodeURIComponent(ing.name.replace(/ /g, '_'))}-small.png" alt="" loading="lazy" onerror="this.style.visibility='hidden'">`}
-        <span><span class="name">${esc(ing.name)}</span>${ing.note ? `<span class="inote">${esc(ing.note)}</span>` : ''}${ing.measure ? `<span class="qty">${esc(ing.fixed ? ing.measure : scaleMeasure(ing.measure, ctx.mult))}</span>` : ''}</span>
+        <span><span class="name">${esc(ing.name)}</span>${ing.note ? `<span class="inote">${esc(ing.note)}</span>` : ''}${ing.measure ? `<span class="qty">${esc(doseOut(ing.measure, ctx.mult, ing.fixed))}</span>` : ''}</span>
       </label></li>`).join('');
     $('#steps').innerHTML = ctx.steps.map((s, i) => `
       <li class="${st.done.has(i) ? 'done' : ''}">
@@ -897,12 +1012,16 @@ async function viewMeal(id) {
   render(); renderNote();
   if (meal._empty) $('#steps').innerHTML = `<li class="no-num"><p class="step-text">${T.wbEmpty}</p></li>`;
 
-  $('#back').addEventListener('click', () => history.length > 1 ? history.back() : (location.hash = '#/'));
   $('#save').addEventListener('click', e => {
     toggleSave(meal);
     const b = e.currentTarget; b.innerHTML = isSaved(id) ? ICON.heartFull : ICON.heart; b.setAttribute('aria-pressed', isSaved(id));
     renderNote();
   });
+  $$('[data-units]').forEach(b => b.addEventListener('click', () => {
+    units = b.dataset.units; store('er.units', units);
+    $$('[data-units]').forEach(x => x.setAttribute('aria-pressed', x === b));
+    render();
+  }));
   $$('[data-mult]').forEach(b => b.addEventListener('click', () => {
     st.mult = +b.dataset.mult;
     $$('[data-mult]').forEach(x => x.setAttribute('aria-pressed', x === b));
@@ -922,7 +1041,7 @@ function bindTimerButtons(meal) {
   view.addEventListener('click', e => {
     const b = e.target.closest('.tbtn'); if (!b) return;
     const short = meal.strMeal.length > 22 ? meal.strMeal.slice(0, 21) + '…' : meal.strMeal;
-    startTimer(+b.dataset.timer, `${T.step} ${b.dataset.step} · ${short}`, b.dataset.key);
+    startTimer(+b.dataset.timer, `${T.step} ${b.dataset.step} · ${short}`, b.dataset.key, !!b.dataset.long);
   });
 }
 
@@ -1079,6 +1198,8 @@ function route() {
   const params = new URLSearchParams(qs || '');
   if (parts[0] !== 'cook') releaseWake();
   document.body.classList.toggle('cooking', parts[0] === 'cook');
+  $('#hdr-back').hidden = !parts[0];
+  navDepth++;
   document.body.classList.toggle('page-meal', parts[0] === 'meal');
   document.body.classList.toggle('page-done', parts[0] === 'done');
   const tab = parts[0] === 'saved' ? 'saved' : 'explore';
@@ -1090,10 +1211,13 @@ function route() {
   else if (parts[0] === 'browse' && parts[2]) viewBrowse(parts[1] === 'a' ? 'a' : 'c', parts[2]);
   else if (parts[0] === 'done' && parts[1]) viewDone(parts[1]);
   else if (parts[0] === 'saved') viewSaved();
+  else if (parts[0] === 'house') viewHouse();
   else viewHome(params);
   if (parts[0] !== 'cook') window.scrollTo(0, 0);
 }
 window.addEventListener('hashchange', route);
+let navDepth = 0;
+$('#hdr-back').addEventListener('click', () => { if (navDepth > 1) history.back(); else location.hash = '#/'; });
 
 /* ---------- Boot ---------- */
 renderDock(); tick();

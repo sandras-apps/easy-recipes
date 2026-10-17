@@ -18,8 +18,13 @@
 </head>
 <body>
   <header class="app-header">
-    <img src="icons/chick-hello.webp" alt="" width="46" height="62">
-    <div class="brand">Easy Recipes<small>Cook without the back-and-forth</small></div>
+    <button class="icon-btn hdr-back" id="hdr-back" type="button" aria-label="Back" hidden>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>
+    </button>
+    <a class="brand-link" href="#/" aria-label="Easy Recipes — home">
+      <img src="icons/chick-hello.webp" alt="" width="46" height="62">
+      <span class="brand">Easy Recipes<small>Cook without the back-and-forth</small></span>
+    </a>
   </header>
 
   <main id="view" class="wrap" tabindex="-1"></main>
