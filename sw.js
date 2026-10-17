@@ -1,6 +1,6 @@
 /* Easy Recipes service worker: makes the app work offline.
    Bump VERSION whenever you change the app files, so phones get the update. */
-const VERSION = 'er-v11';
+const VERSION = 'er-v12';
 const SHELL = [
   './', 'index.html', 'css/styles.css', 'js/app.js', 'manifest.webmanifest',
   'icons/chick-hello.webp', 'icons/chick-happy.webp', 'icons/chick-cheer.webp', 'icons/chick-spoon.webp',
@@ -63,14 +63,16 @@ self.addEventListener('fetch', e => {
     })));
     return;
   }
-  // The app itself: cache first, update in the background
+  // The app itself: always try the newest version first (so updates show up right away),
+  // fall back to the saved copy when offline. Fonts and icons never change: cache first.
   if (url.origin === self.location.origin) {
-    e.respondWith(caches.match(req, { ignoreSearch: true }).then(hit => {
-      const net = fetch(req).then(res => {
-        if (res.ok) { const copy = res.clone(); caches.open(VERSION).then(c => c.put(req, copy)); }
-        return res;
-      }).catch(() => hit);
-      return hit || net;
-    }));
+    if (/\/(fonts|icons)\//.test(url.pathname)) {
+      e.respondWith(caches.match(req, { ignoreSearch: true }).then(hit => hit || fetch(req)));
+      return;
+    }
+    e.respondWith(fetch(req, { cache: 'no-cache' }).then(res => {
+      if (res.ok) { const copy = res.clone(); caches.open(VERSION).then(c => c.put(req, copy)); }
+      return res;
+    }).catch(() => caches.match(req, { ignoreSearch: true }).then(r => r || Response.error())));
   }
 });

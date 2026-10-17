@@ -14,7 +14,8 @@ let view = $('#view');
 
 /* ---------- UI text (all in one place, so translating later is easy) ---------- */
 const T = {
-  searchPh: 'Search recipes…', byName: 'By name', byIng: 'By ingredient', go: 'Go',
+  searchPh: 'Search recipes…', byName: 'By name', byIng: 'By ingredient', byAuthor: 'By author', go: 'Go',
+  authorHint: 'Authors are shown on House recipes — the ones written for Easy Recipes or sent in by people like you.',
   surprise: 'Surprise me', another: 'Another one', categories: 'Categories', cuisines: 'Cuisines',
   results: 'Results', noResults: "No recipes found. Try another word!",
   offline: "Can't reach the recipe kitchen right now. Check your connection — your saved recipes still work offline.",
@@ -470,6 +471,7 @@ async function viewHome(params) {
     <div class="seg" role="group" aria-label="Search type">
       <button type="button" data-by="name" aria-pressed="${by === 'name'}">${T.byName}</button>
       <button type="button" data-by="ing" aria-pressed="${by === 'ing'}">${T.byIng}</button>
+      <button type="button" data-by="author" aria-pressed="${by === 'author'}">${T.byAuthor}</button>
       <a class="seg-link" href="#/house">🐣 ${T.house}</a>
     </div>
     <div id="results"></div>
@@ -482,7 +484,7 @@ async function viewHome(params) {
   $$('.seg button[data-by]').forEach(b => b.addEventListener('click', () => {
     searchBy = b.dataset.by;
     $$('.seg button[data-by]').forEach(x => x.setAttribute('aria-pressed', x === b));
-    $('#q').placeholder = searchBy === 'ing' ? 'e.g. chicken, garlic, salmon…' : T.searchPh;
+    $('#q').placeholder = searchBy === 'ing' ? 'e.g. chicken, garlic, salmon…' : searchBy === 'author' ? 'e.g. Easy Recipes' : T.searchPh;
   }));
   $('#sform').addEventListener('submit', e => {
     e.preventDefault();
@@ -546,11 +548,13 @@ async function runSearch(q, by) {
   const path = by === 'ing'
     ? 'filter.php?i=' + encodeURIComponent(q.toLowerCase().replace(/\s+/g, '_'))
     : 'search.php?s=' + encodeURIComponent(q);
-  const html = await mergedHTML([
-    loadHouse().then(list => list.filter(m => houseMatches(m, q, by))),
-    api(path).then(d => d.meals || []),
-    wbSearch(q),
-  ]);
+  const html = by === 'author'
+    ? `<p class="hint">${T.authorHint}</p>` + await mergedHTML([loadHouse().then(list => list.filter(m => houseMatches(m, q, by)))])
+    : await mergedHTML([
+      loadHouse().then(list => list.filter(m => houseMatches(m, q, by))),
+      api(path).then(d => d.meals || []),
+      wbSearch(q),
+    ]);
   const el = $('#results .g'); if (el) el.innerHTML = html;
 }
 
@@ -770,6 +774,7 @@ function houseInBrowse(meal, kind, value) {
 function houseMatches(meal, q, by) {
   const n = q.toLowerCase();
   if (by === 'ing') return meal._ings.some(i => i.name.toLowerCase().includes(n));
+  if (by === 'author') return (meal._author || 'Easy Recipes').toLowerCase().includes(n);
   return [meal.strMeal, meal._cats.join(' '), meal.strArea, meal.strTags].join(' ').toLowerCase().includes(n);
 }
 
@@ -1309,5 +1314,10 @@ renderDock(); tick();
 showWelcome();
 route();
 if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
-  window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
+  window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').then(r => r.update()).catch(() => {}));
+  // when a new version of the app takes over, reload once so it shows straight away
+  let reloaded = false;
+  if (navigator.serviceWorker.controller) navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (reloaded) return; reloaded = true; location.reload();
+  });
 }

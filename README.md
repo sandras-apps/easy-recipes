@@ -9,7 +9,7 @@ Doses are repeated inside every step, and timers are ready right where you need 
 
 - Recipes from three places, mixed together in one A–Z list: **House recipes** written for the app,
   **TheMealDB** (with photos) and the **Wikibooks Cookbook**. The end of each recipe says where it comes from.
-  Search by name or by ingredient, browse categories and cuisines, or tap "Surprise me".
+  Search by name, by ingredient or by author (House recipes), browse categories and cuisines, or tap "Surprise me".
 - **Doses inside every step**: next to each ingredient mentioned in a step, you see its dose.
   If the step already says how much (e.g. "2 tablespoons of water"), no extra dose is added.
 - **Ready-made timers**: every duration in the text ("cook for 5 minutes", "1 to 2 minutes") is a button.
@@ -122,7 +122,7 @@ Leave the email empty (`''`) to hide the button.
 
 ## Updating the app
 
-Upload the changed files to GitHub, then in `sw.js` change `er-v11` to `er-v12` (then `er-v13`, and so on),
+Upload the changed files to GitHub, then in `sw.js` change `er-v12` to `er-v13` (then `er-v14`, and so on),
 so phones download the new version.
 
 ## Translating the interface
