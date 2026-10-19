@@ -503,8 +503,9 @@ async function viewHome(params) {
     const [cats, areas] = await Promise.all([api('categories.php'), api('list.php?a=list')]);
     const mdbCats = (cats.categories || []).map(c => c.strCategory.toLowerCase());
     const extra = [...new Set(['First courses', 'Second courses', ...(await loadHouse()).flatMap(m => m._cats)])].filter(c => !mdbCats.includes(c.toLowerCase())).sort();
-    $('#cats').innerHTML = extra.map(c => `<a class="chip no-img" href="#/browse/c/${encodeURIComponent(c)}">${esc(c)}</a>`).join('') + (cats.categories || []).map(c =>
+    $('#cats').innerHTML = extra.map(c => `<a class="chip no-img" data-extra="${esc(c)}" href="#/browse/c/${encodeURIComponent(c)}">${esc(c)}</a>`).join('') + (cats.categories || []).map(c =>
       `<a class="chip" href="#/browse/c/${encodeURIComponent(c.strCategory)}"><img src="${esc(c.strCategoryThumb)}" alt="" loading="lazy">${esc(c.strCategory)}</a>`).join('');
+    fillCategoryPhotos();
     let names = (areas.meals || []).map(a => a.strArea).filter(a => a && a !== 'Unknown').sort();
     const counts = await areaCounts().catch(() => null);
     const houseAreas = (await loadHouse()).map(m => m.strArea).filter(Boolean);
@@ -514,6 +515,30 @@ async function viewHome(params) {
     $('#cats').innerHTML = '';
     if (!q) $('#results').innerHTML = emptyHTML(T.offline);
   }
+}
+
+/* Our own categories (First courses, Complete meal…) have no TheMealDB picture:
+   give each one the photo of a random recipe from that category. */
+async function categoryPhoto(cat) {
+  const v = cat.toLowerCase();
+  const pics = (await loadHouse()).filter(m => m.strMealThumb && m._cats.some(c => c.toLowerCase() === v)).map(m => m.strMealThumb);
+  const course = COURSES[v];
+  if (course) {
+    const c = course.mdb[Math.floor(Math.random() * course.mdb.length)];
+    const d = await api('filter.php?c=' + encodeURIComponent(c)).catch(() => ({}));
+    (d.meals || []).forEach(m => { if (m.strMealThumb) pics.push(thumb(m.strMealThumb, 'small')); });
+  }
+  return pics.length ? pics[Math.floor(Math.random() * pics.length)] : '';
+}
+function fillCategoryPhotos() {
+  $$('#cats [data-extra]').forEach(async chip => {
+    const url = await categoryPhoto(chip.dataset.extra).catch(() => '');
+    if (!url || !chip.isConnected) return;
+    const img = document.createElement('img');
+    img.src = url; img.alt = ''; img.loading = 'lazy';
+    img.onerror = () => { img.remove(); chip.classList.add('no-img'); };
+    chip.prepend(img); chip.classList.remove('no-img');
+  });
 }
 
 /* Which cuisines actually have recipes? Count them once a week (26 small requests, a–z). */
