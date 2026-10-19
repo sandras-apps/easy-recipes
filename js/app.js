@@ -4,7 +4,11 @@
    Everything you save stays on this device (localStorage). No tracking, no permissions. */
 'use strict';
 
-const API = 'https://www.themealdb.com/api/json/v1/1/';
+/* TheMealDB key. '1' is the free test key (development and personal use only).
+   After becoming a TheMealDB supporter, paste your key here instead of '1'. */
+const MEALDB_KEY = '1';
+const PREMIUM = MEALDB_KEY !== '1';
+const API = PREMIUM ? `https://www.themealdb.com/api/json/v2/${MEALDB_KEY}/` : 'https://www.themealdb.com/api/json/v1/1/';
 /* Where people can send their recipes. Leave it empty ('') to hide the "Share your recipe" box. */
 const CONTACT_EMAIL = 'sandras.apps.studio@gmail.com';
 const ING_IMG = 'https://www.themealdb.com/images/ingredients/';
@@ -545,16 +549,27 @@ async function mergedHTML(sources) {
 async function runSearch(q, by) {
   const box = $('#results');
   box.innerHTML = `<section class="section"><div class="section-head"><h2>${T.results}</h2></div><div class="g">${loadingHTML}</div></section>`;
-  const path = by === 'ing'
-    ? 'filter.php?i=' + encodeURIComponent(q.toLowerCase().replace(/\s+/g, '_'))
-    : 'search.php?s=' + encodeURIComponent(q);
   const html = by === 'author'
     ? `<p class="hint">${T.authorHint}</p>` + await mergedHTML([loadHouse().then(list => list.filter(m => houseMatches(m, q, by)))])
     : await mergedHTML([
       loadHouse().then(list => list.filter(m => houseMatches(m, q, by))),
-      api(path).then(d => d.meals || []),
+      by === 'ing' ? mdbByIngredients(q) : api('search.php?s=' + encodeURIComponent(q)).then(d => d.meals || []),
     ]);
   const el = $('#results .g'); if (el) el.innerHTML = html;
+}
+
+/* "chicken, garlic" → recipes that use ALL the ingredients.
+   Supporter key: one request. Free key: one request per ingredient, then keep the recipes found in every list. */
+const ingWords = q => q.toLowerCase().split(/\s*(?:,|\+|&|\band\b)\s*/).map(w => w.trim()).filter(Boolean);
+async function mdbByIngredients(q) {
+  const words = [...new Set(ingWords(q).map(w => w.replace(/\s+/g, '_')))].slice(0, 5);
+  if (!words.length) return [];
+  if (PREMIUM || words.length === 1) {
+    const d = await api('filter.php?i=' + words.map(encodeURIComponent).join(','));
+    return d.meals || [];
+  }
+  const lists = await Promise.all(words.map(w => api('filter.php?i=' + encodeURIComponent(w)).then(d => d.meals || [])));
+  return lists.reduce((acc, list) => { const ids = new Set(list.map(m => m.idMeal)); return acc.filter(m => ids.has(m.idMeal)); });
 }
 
 async function renderSurprise(fresh) {
@@ -770,7 +785,7 @@ function houseInBrowse(meal, kind, value) {
 }
 function houseMatches(meal, q, by) {
   const n = q.toLowerCase();
-  if (by === 'ing') return meal._ings.some(i => i.name.toLowerCase().includes(n));
+  if (by === 'ing') return ingWords(q).every(w => meal._ings.some(i => i.name.toLowerCase().includes(w)));
   if (by === 'author') return (meal._author || 'Easy Recipes').toLowerCase().includes(n);
   return [meal.strMeal, meal._cats.join(' '), meal.strArea, meal.strTags].join(' ').toLowerCase().includes(n);
 }

@@ -9,7 +9,7 @@ Doses are repeated inside every step, and timers are ready right where you need 
 
 - Recipes from two places, mixed together in one A–Z list: **House recipes** written for the app
   and **TheMealDB** (with photos). The end of each recipe says where it comes from.
-  Search by name, by ingredient or by author (House recipes), browse categories and cuisines, or tap "Surprise me".
+  Search by name, by ingredients (e.g. "chicken, garlic" finds recipes with both) or by author (House recipes), browse categories and cuisines, or tap "Surprise me".
 - **Doses inside every step**: next to each ingredient mentioned in a step, you see its dose.
   If the step already says how much (e.g. "2 tablespoons of water"), no extra dose is added.
 - **Ready-made timers**: every duration in the text ("cook for 5 minutes", "1 to 2 minutes") is a button.
@@ -43,7 +43,9 @@ Doses are repeated inside every step, and timers are ready right where you need 
 - **Uninstalling deletes your cookbook**: it's saved on your phone. Use "Export cookbook" first.
 - **Data source**: recipes and photos come from [TheMealDB](https://www.themealdb.com) through its free test key "1",
   meant for personal and educational use. The photos belong to the TheMealDB community, not to us.
-  Publishing on an app store would require becoming a TheMealDB supporter (paid key).
+  Sharing the app publicly needs a TheMealDB supporter key (paid once). When you have it, open `js/app.js`
+  and replace `'1'` in `const MEALDB_KEY = '1';` with your key. The key ends up in the public code: that's
+  expected for an app with no server, and it's why a one-off key is a good fit.
 - **Wikibooks recipes were removed** in October 2026: fewer recipes, but all of them good-looking.
   If you had saved one in "My cookbook", it's still there and still credits its Wikibooks authors.
 
@@ -122,7 +124,7 @@ Leave the email empty (`''`) to hide the button.
 
 ## Updating the app
 
-Upload the changed files to GitHub, then in `sw.js` change `er-v13` to `er-v14` (then `er-v15`, and so on),
+Upload the changed files to GitHub, then in `sw.js` change `er-v14` to `er-v15` (then `er-v16`, and so on),
 so phones download the new version.
 
 ## Translating the interface
