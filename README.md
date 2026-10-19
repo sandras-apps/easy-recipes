@@ -7,8 +7,8 @@ Doses are repeated inside every step, and timers are ready right where you need 
 
 ## Features
 
-- Recipes from three places, mixed together in one A–Z list: **House recipes** written for the app,
-  **TheMealDB** (with photos) and the **Wikibooks Cookbook**. The end of each recipe says where it comes from.
+- Recipes from two places, mixed together in one A–Z list: **House recipes** written for the app
+  and **TheMealDB** (with photos). The end of each recipe says where it comes from.
   Search by name, by ingredient or by author (House recipes), browse categories and cuisines, or tap "Surprise me".
 - **Doses inside every step**: next to each ingredient mentioned in a step, you see its dose.
   If the step already says how much (e.g. "2 tablespoons of water"), no extra dose is added.
@@ -31,7 +31,7 @@ Doses are repeated inside every step, and timers are ready right where you need 
 
 - No account, no email, no tracking.
 - No permissions needed. Timers ring and vibrate inside the app only.
-- Fonts and images are bundled with the app. The only sites it contacts are TheMealDB and Wikibooks, to fetch recipes.
+- Fonts and images are bundled with the app. The only site it contacts is TheMealDB, to fetch recipes and photos.
 - Nobody can post recipes in the app: House recipes are added only by the developer, through this repository.
   People can email a recipe; it's published only if the developer chooses it, with the author's name.
 
@@ -44,8 +44,8 @@ Doses are repeated inside every step, and timers are ready right where you need 
 - **Data source**: recipes and photos come from [TheMealDB](https://www.themealdb.com) through its free test key "1",
   meant for personal and educational use. The photos belong to the TheMealDB community, not to us.
   Publishing on an app store would require becoming a TheMealDB supporter (paid key).
-- **Wikibooks recipes** are read live from [en.wikibooks.org](https://en.wikibooks.org/wiki/Cookbook:Table_of_Contents)
-  and reformatted on your phone. Pages with an unusual layout show a link to the original instead.
+- **Wikibooks recipes were removed** in October 2026: fewer recipes, but all of them good-looking.
+  If you had saved one in "My cookbook", it's still there and still credits its Wikibooks authors.
 
 ## Install it on your phone
 
@@ -88,8 +88,8 @@ the rest is optional. The author's name appears on the card and page ("Recipe by
 must start with `https://`. Photos go in `my-recipes/photos` (a light `.webp` or `.jpg`, about 1200 px wide).
 Lines starting with a single `>` become "Tips & notes".
 `category` can list several categories separated by commas; new ones (like "First courses") appear
-in the Categories list automatically. "First courses" also collects TheMealDB Pasta and Wikibooks pasta,
-risotto and soup recipes; "Second courses" collects TheMealDB Beef, Chicken, Lamb, Pork, Seafood and Goat. `servings` should be a number, so default servings work.
+in the Categories list automatically. "First courses" also collects TheMealDB Pasta recipes;
+"Second courses" collects TheMealDB Beef, Chicken, Lamb, Pork, Seafood and Goat. `servings` should be a number, so default servings work.
 If `author` is "Easy Recipes" (or empty), the recipe shows "Made by Easy Recipes"; any other name shows
 "Recipe by …, shared with Easy Recipes".
 
@@ -122,24 +122,19 @@ Leave the email empty (`''`) to hide the button.
 
 ## Updating the app
 
-Upload the changed files to GitHub, then in `sw.js` change `er-v12` to `er-v13` (then `er-v14`, and so on),
+Upload the changed files to GitHub, then in `sw.js` change `er-v13` to `er-v14` (then `er-v15`, and so on),
 so phones download the new version.
 
 ## Translating the interface
 
 All the app's text lives in one place: the `T` object at the top of `js/app.js`.
 
-## Thank you, TheMealDB and Wikibooks 💛
+## Thank you, TheMealDB 💛
 
 This app exists thanks to [TheMealDB](https://www.themealdb.com), a free and open recipe database
-built by its community. Every recipe and photo in Easy Recipes comes from there,
-and the photos belong to their authors, not to us.
+built by its community. Every recipe outside the House recipes comes from there,
+and those photos belong to their authors, not to us.
 If you enjoy the app, pay them a visit and, if you can, [support them](https://www.themealdb.com/api.php).
-
-Many more recipes come from the [Wikibooks Cookbook](https://en.wikibooks.org/wiki/Cookbook:Table_of_Contents),
-a free cookbook written by volunteers and shared under [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/).
-Easy Recipes reformats those pages into steps with doses and timers; every Wikibooks recipe in the app
-links back to its original page and its authors.
 
 ## About the artwork
 
@@ -150,7 +145,6 @@ are in the `design` folder. The images inside the app are lighter, background-fr
 ## Credits
 
 - Recipes and photos: [TheMealDB](https://www.themealdb.com) and its community
-- Recipes: the [Wikibooks Cookbook](https://en.wikibooks.org/wiki/Cookbook:Table_of_Contents) and its contributors (CC BY-SA 4.0)
 - House recipe format: [Cooklang](https://cooklang.org)
 - Chef chick and logo: Alessandra, made with Canva AI
 - Moodboard and art direction: Alessandra

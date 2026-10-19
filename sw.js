@@ -1,6 +1,6 @@
 /* Easy Recipes service worker: makes the app work offline.
    Bump VERSION whenever you change the app files, so phones get the update. */
-const VERSION = 'er-v12';
+const VERSION = 'er-v13';
 const SHELL = [
   './', 'index.html', 'css/styles.css', 'js/app.js', 'manifest.webmanifest',
   'icons/chick-hello.webp', 'icons/chick-happy.webp', 'icons/chick-cheer.webp', 'icons/chick-spoon.webp',
@@ -32,14 +32,6 @@ self.addEventListener('fetch', e => {
   // Recipe data: try the network first, fall back to what we saw before
   if (url.hostname === 'www.themealdb.com' && url.pathname.startsWith('/api/')) {
     if (url.pathname.endsWith('random.php')) return; // never cache "random"
-    e.respondWith(fetch(req).then(res => {
-      if (res.ok) { const copy = res.clone(); caches.open(API_CACHE).then(c => c.put(req, copy)); }
-      return res;
-    }).catch(() => caches.match(req).then(r => r || Response.error())));
-    return;
-  }
-  // Wikibooks Cookbook pages: network first, saved copy when offline
-  if (url.hostname === 'en.wikibooks.org' && url.pathname.startsWith('/w/api.php')) {
     e.respondWith(fetch(req).then(res => {
       if (res.ok) { const copy = res.clone(); caches.open(API_CACHE).then(c => c.put(req, copy)); }
       return res;

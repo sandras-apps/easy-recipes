@@ -1,6 +1,6 @@
 /* Easy Recipes — a free, no-account recipe PWA.
    Recipes & photos: TheMealDB (https://www.themealdb.com).
-   More recipes: the Wikibooks Cookbook (CC BY-SA 4.0) and the developer's own house recipes.
+   More recipes: the developer's own House recipes (Cooklang files in /my-recipes).
    Everything you save stays on this device (localStorage). No tracking, no permissions. */
 'use strict';
 
@@ -70,11 +70,11 @@ const T = {
     'By sending this email, I confirm that this recipe and photo are my own, and I allow Easy Recipes to publish them in the app '
     + '(adapted to the app\'s format) together with the author name above. I can ask for them to be removed at any time by replying to this address.',
   ].join('\n'),
-  fromMealDB: 'From TheMealDB', fromWB: 'From the Wikibooks Cookbook',
   servings: 'Serves', time: 'Time',
+  /* Only for Wikibooks recipes someone saved before Wikibooks was removed (Oct 2026):
+     they stay readable in "My cookbook", with the credit their licence asks for. */
   wbOpen: 'Open on Wikibooks', wbHistory: 'authors',
   wbCredit: (link, hist) => `Adapted from ${link} in the Wikibooks Cookbook, written by its ${hist}, and shared under the <a href="https://creativecommons.org/licenses/by-sa/4.0/" target="_blank" rel="noopener noreferrer">CC BY-SA 4.0</a> licence. Easy Recipes reformatted it into steps with doses and timers.`,
-  wbEmpty: "This Wikibooks page uses a layout Easy Recipes can't read yet. You can still open it on Wikibooks.",
 };
 
 /* ---------- Small helpers ---------- */
@@ -104,7 +104,7 @@ const ICON = {
 const loadingHTML = '<div class="loading" aria-label="Loading"><span></span><span></span><span></span></div>';
 const CHICK = { hello: 'icons/chick-hello.webp', happy: 'icons/chick-happy.webp', cheer: 'icons/chick-cheer.webp', spoon: 'icons/chick-spoon.webp' };
 const emptyHTML = msg => `<div class="empty"><img src="${CHICK.spoon}" alt="" width="130" height="177"><p>${esc(msg)}</p></div>`;
-const creditsHTML = () => `<footer class="credits">Recipes from <a href="https://www.themealdb.com" target="_blank" rel="noopener noreferrer">TheMealDB</a> and the <a href="https://en.wikibooks.org/wiki/Cookbook:Table_of_Contents" target="_blank" rel="noopener noreferrer">Wikibooks Cookbook</a> — free, community-made. Thank you!</footer>`;
+const creditsHTML = () => `<footer class="credits">Recipes from <a href="https://www.themealdb.com" target="_blank" rel="noopener noreferrer">TheMealDB</a> — free and community-made, thank you! — plus our own <a href="#/house">House recipes</a> 🐣</footer>`;
 
 /* ---------- API (with an in-memory cache) ---------- */
 const memo = new Map();
@@ -553,7 +553,6 @@ async function runSearch(q, by) {
     : await mergedHTML([
       loadHouse().then(list => list.filter(m => houseMatches(m, q, by))),
       api(path).then(d => d.meals || []),
-      wbSearch(q),
     ]);
   const el = $('#results .g'); if (el) el.innerHTML = html;
 }
@@ -578,11 +577,10 @@ async function renderSurprise(fresh) {
   } catch { box.innerHTML = ''; }
 }
 
-const HOUSE_ONLY = new Set(['complete meal', 'miscellaneous']);
-/* Course categories collect recipes from every source */
+/* Course categories collect recipes from TheMealDB categories + House recipes */
 const COURSES = {
-  'first courses': { mdb: ['Pasta'], wb: ['pasta', 'risotto', 'soup'] },
-  'second courses': { mdb: ['Beef', 'Chicken', 'Lamb', 'Pork', 'Seafood', 'Goat'], wb: [] },
+  'first courses': { mdb: ['Pasta'] },
+  'second courses': { mdb: ['Beef', 'Chicken', 'Lamb', 'Pork', 'Seafood', 'Goat'] },
 };
 async function viewBrowse(kind, value) {
   view.innerHTML = `
@@ -593,11 +591,9 @@ async function viewBrowse(kind, value) {
   const html = await mergedHTML(course ? [
     loadHouse().then(list => list.filter(m => houseInBrowse(m, kind, value))),
     ...course.mdb.map(c => api('filter.php?c=' + encodeURIComponent(c)).then(d => d.meals || [])),
-    ...course.wb.map(q => wbSearch(q)),
   ] : [
     loadHouse().then(list => list.filter(m => houseInBrowse(m, kind, value))),
     api(`filter.php?${kind}=${encodeURIComponent(value)}`).then(d => d.meals || []),
-    HOUSE_ONLY.has(value.toLowerCase()) ? Promise.resolve([]) : wbSearch(value),
   ]);
   const el = $('#list'); if (el) el.innerHTML = html;
 }
@@ -642,8 +638,9 @@ async function viewHouse() {
    MORE RECIPE SOURCES
    - House recipes: Cooklang files in /my-recipes. Only the developer
      adds them (by uploading files to GitHub) — users can't write here.
-   - Wikibooks Cookbook: read live from en.wikibooks.org (CC BY-SA 4.0).
    Every source is turned into the same "meal" shape used by TheMealDB.
+   (Wikibooks Cookbook recipes were removed in Oct 2026; old saved copies
+   — ids starting with "wb:" — still open from "My cookbook".)
    ============================================================ */
 const isWB = id => String(id).startsWith('wb:');
 const isHouse = id => String(id).startsWith('my:');
@@ -778,113 +775,6 @@ function houseMatches(meal, q, by) {
   return [meal.strMeal, meal._cats.join(' '), meal.strArea, meal.strTags].join(' ').toLowerCase().includes(n);
 }
 
-/* ---------- Wikibooks Cookbook (live, CC BY-SA 4.0) ---------- */
-const WB_API = 'https://en.wikibooks.org/w/api.php';
-const WB_PAGE = t => 'https://en.wikibooks.org/wiki/' + encodeURIComponent(t.replace(/ /g, '_')).replace(/%3A/g, ':');
-const wbName = t => String(t).replace(/^Cookbook:/, '');
-async function wbJSON(params) {
-  const url = WB_API + '?' + new URLSearchParams({ format: 'json', formatversion: '2', origin: '*', ...params });
-  if (memo.has(url)) return memo.get(url);
-  const res = await fetch(url);
-  if (!res.ok) throw new Error('HTTP ' + res.status);
-  const data = await res.json();
-  memo.set(url, data);
-  return data;
-}
-async function wbSearch(q) {
-  const tries = [
-    { srsearch: q + ' incategory:Recipes', srnamespace: '102' },
-    { srsearch: q + ' incategory:Recipes' },
-    { srsearch: q + ' recipe', srnamespace: '102' },
-  ];
-  for (const t of tries) {
-    const d = await wbJSON({ action: 'query', list: 'search', srlimit: '24', srprop: '', ...t });
-    const hits = (d.query && d.query.search || []).filter(h => /^Cookbook:/.test(h.title) && !/\//.test(h.title));
-    if (hits.length) return hits.map(h => ({ idMeal: 'wb:' + h.title, strMeal: wbName(h.title), strMealThumb: '', _kind: 'wb' }));
-  }
-  return [];
-}
-const WB_NUM = '(?:\\d+\\s+\\d+\\/\\d+|\\d+\\/\\d+|\\d+(?:[.,]\\d+)?\\s*[½¼¾⅓⅔]?|[½¼¾⅓⅔])';
-const WB_UNITS = '(?:g|grams?|kg|kilograms?|mg|ml|millilit(?:er|re)s?|l|lit(?:er|re)s?|dl|cl|cups?|tablespoons?|tbsp|tbs|teaspoons?|tsp|oz|ounces?|fl\\.?\\s?oz|lbs?|pounds?|pints?|quarts?|qt|gallons?|pinch(?:es)?|dash(?:es)?|cloves?|cans?|tins?|packages?|packets?|pkgs?|sticks?|slices?|bunch(?:es)?|handfuls?|sprigs?|heads?|stalks?|knobs?|large|medium|small)';
-const WB_ING_RE = new RegExp('^((?:about|approx\\.?|approximately|~)?\\s*' + WB_NUM + '(?:\\s*(?:-|–|to)\\s*' + WB_NUM + ')?\\s*(?:\\([^)]*\\)\\s*)?(?:' + WB_UNITS + '\\b\\.?)?(?:\\s*\\([^)]*\\))?)\\s+(?:of\\s+)?(.+)$', 'i');
-function splitIngLine(line) {
-  line = line.replace(/\s+/g, ' ').trim();
-  const m = line.match(WB_ING_RE);
-  const measure = m ? m[1].trim() : '';
-  const rest = m ? m[2] : line;
-  const cut = rest.search(/\s*(?:,|\(|;|\s[-–—]\s)/);
-  const name = (cut > 1 ? rest.slice(0, cut) : rest).trim();
-  const note = cut > 1 ? rest.slice(cut).replace(/^\s*[,;]\s*/, ', ').trim() : '';
-  return { name: name || line, measure, note };
-}
-const ownText = li => { const c = li.cloneNode(true); c.querySelectorAll('ul,ol,dl').forEach(n => n.remove()); return c.textContent.replace(/\s+/g, ' ').trim(); };
-function parseWikibooks(html, title) {
-  const doc = new DOMParser().parseFromString(html, 'text/html');
-  doc.querySelectorAll('style,script,link,sup.reference,.mw-editsection,.noprint,.navbox,.mw-empty-elt,.thumb,figure,.gallery,.toc,#toc').forEach(n => n.remove());
-  const info = {};
-  doc.querySelectorAll('tr').forEach(tr => {
-    const th = tr.querySelector('th'), td = tr.querySelector('td');
-    if (!th || !td) return;
-    const k = th.textContent.trim().toLowerCase().replace(/:$/, '');
-    if (/^(category|servings|yield|time|difficulty)$/.test(k)) { info[k] = td.textContent.replace(/\s+/g, ' ').trim(); tr.closest('table')?.setAttribute('data-info', '1'); }
-  });
-  doc.querySelectorAll('table[data-info]').forEach(t => t.remove());
-  const ings = [], steps = [];
-  let sec = '';
-  for (const el of doc.body.querySelectorAll('h2,h3,h4,p,ul,ol,table')) {
-    if (/^H[2-4]$/.test(el.tagName)) { sec = el.textContent.trim().toLowerCase(); continue; }
-    if (el.parentElement && el.parentElement.closest('ul,ol,table')) continue;
-    const kind = /ingredient/.test(sec) ? 'ing'
-      : /procedure|direction|method|preparation|instruction|steps|cooking|technique/.test(sec) ? 'step' : '';
-    if (!kind) continue;
-    if (kind === 'ing') {
-      if (el.tagName === 'TABLE') {
-        const rows = [...el.querySelectorAll('tr')];
-        const head = rows[0] ? [...rows[0].querySelectorAll('th,td')].map(c => c.textContent.trim().toLowerCase()) : [];
-        const hasHead = rows[0] && rows[0].querySelector('th') && !rows[0].querySelector('td');
-        const nameCol = Math.max(0, head.findIndex(h => /ingredient|item|name/.test(h)));
-        const pref = ['mass', 'weight', 'volume', 'amount', 'quantity', 'count', 'measure'];
-        for (const r of rows.slice(hasHead ? 1 : 0)) {
-          const cells = [...r.querySelectorAll('th,td')].map(c => c.textContent.replace(/\s+/g, ' ').trim());
-          if (!cells.some(Boolean)) continue;
-          if (hasHead) {
-            const name = cells[nameCol] || '';
-            let measure = '';
-            for (const p of pref) { const i = head.findIndex(h => h.includes(p)); if (i >= 0 && i !== nameCol && cells[i]) { measure = cells[i]; break; } }
-            if (!measure) measure = cells.filter((c, i) => i !== nameCol && c).join(' ');
-            if (name) { const s = splitIngLine(name); ings.push({ name: s.name, measure: measure || s.measure, note: s.note }); }
-          } else ings.push(splitIngLine(cells.filter(Boolean).join(' ')));
-        }
-      } else if (el.tagName === 'P') {
-        const t = el.textContent.replace(/\s+/g, ' ').trim();
-        if (t && !/:$/.test(t) && t.length < 120 && WB_ING_RE.test(t)) ings.push(splitIngLine(t));
-      } else {
-        for (const li of el.querySelectorAll('li')) { const t = ownText(li); if (t) ings.push(splitIngLine(t)); }
-      }
-    } else {
-      if (el.tagName === 'TABLE') continue;
-      if (el.tagName === 'P') { const t = el.textContent.replace(/\s+/g, ' ').trim(); if (t.length > 15) steps.push(t); }
-      else for (const li of el.querySelectorAll(':scope > li')) {
-        const t = ownText(li); if (t) steps.push(t);
-        li.querySelectorAll('li').forEach(sub => { const s = ownText(sub); if (s) steps.push(s); });
-      }
-    }
-  }
-  const time = info.time || '', serv = info.servings || info.yield || '';
-  return {
-    idMeal: 'wb:' + title, strMeal: wbName(title), strMealThumb: '', strArea: '',
-    strCategory: (info.category || '').replace(/\s*recipes?$/i, ''), strTags: '',
-    strSource: WB_PAGE(title), strYoutube: '', strInstructions: steps.join('\n'),
-    _kind: 'wb', _ings: ings, _wbTitle: title, _servings: serv, _time: time,
-    _empty: !ings.length && !steps.length,
-  };
-}
-async function wbGet(title) {
-  const d = await wbJSON({ action: 'parse', page: title, prop: 'text', redirects: '1', disableeditsection: '1', disabletoc: '1' });
-  if (d.error || !d.parse) throw new Error('wb');
-  return parseWikibooks(d.parse.text, d.parse.title || title);
-}
-
 /* "Share your recipe" box — only shown when CONTACT_EMAIL is set */
 function shareHTML() {
   if (!CONTACT_EMAIL) return '';
@@ -999,15 +889,10 @@ function servingsFor(meal) {
   return { serv: st.serv, base, mult: st.serv / base.n };
 }
 
-const wbMemo = new Map();
 async function getMeal(id) {
   if (saved[id]) return saved[id].meal; // works offline
   if (isHouse(id)) return (await loadHouse()).find(m => m.idMeal === id);
-  if (isWB(id)) {
-    const t = id.slice(3);
-    if (!wbMemo.has(t)) wbMemo.set(t, wbGet(t).catch(e => { wbMemo.delete(t); throw e; }));
-    return wbMemo.get(t);
-  }
+  if (isWB(id)) return null; // Wikibooks is gone: only saved copies (above) still open
   const data = await api('lookup.php?i=' + encodeURIComponent(id));
   return data.meals && data.meals[0];
 }
@@ -1099,7 +984,7 @@ async function viewMeal(id) {
     if (n) n.addEventListener('input', () => { saved[id].note = n.value; persistSaved(); });
   };
   render(); renderNote();
-  if (meal._empty) $('#steps').innerHTML = `<li class="no-num"><p class="step-text">${T.wbEmpty}</p></li>`;
+  if (meal._empty) $('#steps').innerHTML = '';
 
   $('#save').addEventListener('click', e => {
     toggleSave(meal);
