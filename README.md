@@ -124,7 +124,7 @@ Leave the email empty (`''`) to hide the button.
 
 ## Updating the app
 
-Upload the changed files to GitHub, then in `sw.js` change `er-v15` to `er-v16` (then `er-v17`, and so on),
+Upload the changed files to GitHub, then in `sw.js` change `er-v16` to `er-v17` (then `er-v18`, and so on),
 so phones download the new version.
 
 ## Translating the interface

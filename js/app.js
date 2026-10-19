@@ -517,18 +517,21 @@ async function viewHome(params) {
   }
 }
 
-/* Our own categories (First courses, Complete meal…) have no TheMealDB picture:
-   give each one the photo of a random recipe from that category. */
+/* Our own categories (First courses, Complete meal…) have no TheMealDB picture,
+   so each one gets a fixed photo of one of its recipes — always the same, like the others.
+   To change one, put another recipe photo here. */
+const CATEGORY_PHOTO = {
+  'complete meal': 'my-recipes/photos/pan-pizza.webp',
+  'first courses': 'my-recipes/photos/pasta-al-pomodoro.webp',
+  'second courses': 'https://www.themealdb.com/images/media/meals/vtqxtu1511784197.jpg/small', // Beef Bourguignon
+};
+/* A new House category not listed above: the first of its recipes (A–Z) that has a photo. */
 async function categoryPhoto(cat) {
   const v = cat.toLowerCase();
-  const pics = (await loadHouse()).filter(m => m.strMealThumb && m._cats.some(c => c.toLowerCase() === v)).map(m => m.strMealThumb);
-  const course = COURSES[v];
-  if (course) {
-    const c = course.mdb[Math.floor(Math.random() * course.mdb.length)];
-    const d = await api('filter.php?c=' + encodeURIComponent(c)).catch(() => ({}));
-    (d.meals || []).forEach(m => { if (m.strMealThumb) pics.push(thumb(m.strMealThumb, 'small')); });
-  }
-  return pics.length ? pics[Math.floor(Math.random() * pics.length)] : '';
+  if (CATEGORY_PHOTO[v]) return CATEGORY_PHOTO[v];
+  const m = (await loadHouse()).filter(x => x.strMealThumb && x._cats.some(c => c.toLowerCase() === v))
+    .sort((x, y) => x.strMeal.localeCompare(y.strMeal, 'en', { sensitivity: 'base' }))[0];
+  return m ? m.strMealThumb : '';
 }
 function fillCategoryPhotos() {
   $$('#cats [data-extra]').forEach(async chip => {
