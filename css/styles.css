@@ -413,3 +413,9 @@ a { color: var(--orange-text); }
 .src-credit a { color: var(--ink); font-weight: 800; }
 .hint.count { margin: -4px 0 10px; }
 .tabbar a { max-width: 180px; }
+
+/* Sandra's other apps (Settings) */
+.more-apps { list-style: none; margin: 10px 0 0; padding: 0; display: flex; flex-direction: column; gap: 12px; }
+.more-apps li { display: flex; flex-direction: column; gap: 2px; }
+.more-apps a { font-weight: 700; font-size: 1.05rem; }
+.more-apps .hint { margin: 0; font-size: 1rem; }

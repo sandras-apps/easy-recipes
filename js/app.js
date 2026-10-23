@@ -54,7 +54,11 @@ const T = {
   servHintGuess: d => `The original recipe doesn't say how many it serves, so we assume 4.` + (d ? ` Your default is ${d}.` : ''),
   defServ: 'Default servings', defServHint: 'Every recipe opens with this many servings. You can still change it on each recipe — for a guest, or when cooking just for you.',
   asRecipe: 'As in the recipe', defUnits: 'Units', about: 'About',
-  aboutText: 'Easy Recipes is free, has no ads, no account and no cookies. Your cookbook and settings stay on this phone. The only thing counted is the visit itself, anonymously, with GoatCounter (no cookies, no personal data).',
+  aboutText: 'Easy Recipes is free, has no ads, no account and no cookies. Your cookbook and settings stay on this phone. The only thing counted is the visit itself, anonymously, with GoatCounter (no cookies, no personal data). The "Share Easy Recipes" button opens your phone\'s own share menu: you choose whether and where to send it, the app sends nothing by itself.',
+  appShareTitle: 'Enjoying it?', appShareHint: 'Share it with someone who might find it useful.', appShareBtn: 'Share Easy Recipes',
+  appShareMsg: 'I recommend Easy Recipes: simple recipes with the amounts written inside every step and timers ready to go. Free 👉',
+  appShareCopied: 'Link copied: paste it wherever you like', appShareFailed: "The link didn't copy. Here it is:",
+  moreTitle: 'More apps by Sandra', moreHint: "Like Easy Recipes? I've made these too.",
   srcMealDB: 'This recipe comes from <a href="https://www.themealdb.com" target="_blank" rel="noopener noreferrer">TheMealDB</a>, a free recipe database made by its community.',
   srcHouseOwn: 'Made by Easy Recipes 🐣',
   srcHouseBy: n => `Recipe by ${n}, shared with Easy Recipes 🐣`,
@@ -655,9 +659,13 @@ function viewSettings() {
       <div class="opts set-opts" role="group" aria-label="${T.defUnits}">
         ${[['orig', T.uOrig], ['metric', T.uMetric], ['us', T.uUS]].map(([k, l]) => `<button type="button" data-units="${k}" aria-pressed="${units === k}">${l}</button>`).join('')}
       </div><p class="hint">${T.unitsHint}</p></div>
+    <div class="box"><h2>${T.appShareTitle}</h2><p class="hint" style="font-size:1rem">${T.appShareHint}</p>
+      <button type="button" class="btn small" id="shareApp">${T.appShareBtn}</button><p class="hint" id="shareAppMsg" hidden></p></div>
+    ${moreAppsHTML()}
     <div class="box"><h2>${T.about}</h2><p class="hint" style="font-size:1rem">${T.aboutText}</p>
       ${CONTACT_EMAIL ? `<p class="hint" style="font-size:1rem">✉️ <a href="mailto:${CONTACT_EMAIL}">${CONTACT_EMAIL}</a></p>` : ''}</div>
     ${creditsHTML()}`;
+  $('#shareApp').addEventListener('click', shareApp);
   $$('[data-def]').forEach(b => b.addEventListener('click', () => {
     defServings = +b.dataset.def; store('er.servings', defServings);
     recipeState.forEach(st => { st.serv = null; });
@@ -668,6 +676,37 @@ function viewSettings() {
     units = b.dataset.units; store('er.units', units);
     $$('[data-units]').forEach(x => x.setAttribute('aria-pressed', x === b));
   }));
+}
+
+/* ---------- Share the app, and Sandra's other apps (bottom of Settings) ---------- */
+const APP_URL = 'https://sandras-apps.github.io/easy-recipes/';
+// The same list lives in every one of Sandra's apps. Only apps with live: true
+// are shown: flip the flag when an app is out for everyone.
+// "Free, no account" is written only where it is true of that app.
+const OTHER_APPS = [
+  { id: 'inward', name: 'Inward', url: 'https://sandras-apps.github.io/inward-app/', live: true,
+    en: 'One deep question a day, to answer in your own paper journal. Free, no account.' },
+  { id: 'quota', name: 'Quota', url: 'https://sandras-apps.github.io/quota-app/', live: false,
+    en: 'Tells you how much you can spend today; save a little and tomorrow you have more. Free, no account.' },
+  { id: 'easy-recipes', name: 'Easy Recipes', url: APP_URL, live: false,
+    en: 'Simple recipes with the amounts inside every step and timers ready to go. Free, no account.' },
+  { id: 'goatstep', name: 'Goatstep', url: '', live: false, en: '' },
+  { id: 'moontick', name: 'MoonTick', url: 'https://getmoontick.com/', live: false, en: '' }
+];
+function moreAppsHTML() {
+  const apps = OTHER_APPS.filter(a => a.live && a.id !== 'easy-recipes');
+  if (!apps.length) return '';
+  return `<div class="box"><h2>${T.moreTitle}</h2><p class="hint" style="font-size:1rem">${T.moreHint}</p>
+    <ul class="more-apps">${apps.map(a => `<li><a href="${esc(a.url)}" target="_blank" rel="noopener">${esc(a.name)}</a><span class="hint">${esc(a.en)}</span></li>`).join('')}</ul></div>`;
+}
+// The phone's own share menu: the app sends nothing, the person chooses.
+// Where there's none (most computers), the message and link are copied.
+function shareApp() {
+  const msg = $('#shareAppMsg'); if (msg) msg.hidden = true;
+  if (navigator.share) { navigator.share({ title: 'Easy Recipes', text: T.appShareMsg, url: APP_URL }).catch(() => {}); return; }
+  const fail = () => { if (msg) { msg.textContent = `${T.appShareFailed} ${APP_URL}`; msg.hidden = false; } };
+  if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(`${T.appShareMsg} ${APP_URL}`).then(() => toast(T.appShareCopied), fail);
+  else fail();
 }
 
 /* House recipes screen */
