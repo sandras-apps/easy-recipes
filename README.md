@@ -29,9 +29,10 @@ Doses are repeated inside every step, and timers are ready right where you need 
 
 ## Privacy and permissions
 
-- No account, no email, no tracking.
+- No account, no email, no cookies.
+- The only analytics is an anonymous visit count with [GoatCounter](https://www.goatcounter.com/help/privacy) (pageviews only, no cookies, no personal data). Your cookbook is never sent anywhere.
 - No permissions needed. Timers ring and vibrate inside the app only.
-- Fonts and images are bundled with the app. The only site it contacts is TheMealDB, to fetch recipes and photos.
+- Fonts and images are bundled with the app. The only sites it contacts are TheMealDB, to fetch recipes and photos, and GoatCounter, for the anonymous visit count.
 - Nobody can post recipes in the app: House recipes are added only by the developer, through this repository.
   People can email a recipe; it's published only if the developer chooses it, with the author's name.
 
@@ -124,7 +125,7 @@ Leave the email empty (`''`) to hide the button.
 
 ## Updating the app
 
-Upload the changed files to GitHub, then in `sw.js` change `er-v16` to `er-v17` (then `er-v18`, and so on),
+Upload the changed files to GitHub, then in `sw.js` change `er-v17` to `er-v18` (then `er-v19`, and so on),
 so phones download the new version.
 
 ## Translating the interface

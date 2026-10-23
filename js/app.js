@@ -1,7 +1,8 @@
 /* Easy Recipes — a free, no-account recipe PWA.
    Recipes & photos: TheMealDB (https://www.themealdb.com).
    More recipes: the developer's own House recipes (Cooklang files in /my-recipes).
-   Everything you save stays on this device (localStorage). No tracking, no permissions. */
+   Everything you save stays on this device (localStorage). No permissions, no cookies.
+   The only analytics is GoatCounter's anonymous visit count (see index.html). */
 'use strict';
 
 /* TheMealDB key. '1' is the free test key (development and personal use only).
@@ -53,7 +54,7 @@ const T = {
   servHintGuess: d => `The original recipe doesn't say how many it serves, so we assume 4.` + (d ? ` Your default is ${d}.` : ''),
   defServ: 'Default servings', defServHint: 'Every recipe opens with this many servings. You can still change it on each recipe — for a guest, or when cooking just for you.',
   asRecipe: 'As in the recipe', defUnits: 'Units', about: 'About',
-  aboutText: 'Easy Recipes is free, has no ads and no account. Your cookbook and settings stay on this phone.',
+  aboutText: 'Easy Recipes is free, has no ads, no account and no cookies. Your cookbook and settings stay on this phone. The only thing counted is the visit itself, anonymously, with GoatCounter (no cookies, no personal data).',
   srcMealDB: 'This recipe comes from <a href="https://www.themealdb.com" target="_blank" rel="noopener noreferrer">TheMealDB</a>, a free recipe database made by its community.',
   srcHouseOwn: 'Made by Easy Recipes 🐣',
   srcHouseBy: n => `Recipe by ${n}, shared with Easy Recipes 🐣`,
