@@ -25,7 +25,7 @@ const T = {
   results: 'Results', noResults: "No recipes found. Try another word!",
   offline: "Can't reach the recipe kitchen right now. Check your connection — your saved recipes still work offline.",
   back: 'Back', save: 'Save', saved: 'Saved', ingredients: 'Ingredients', steps: 'Steps',
-  batch: 'Servings', batchHint: 'All doses update everywhere, steps included.',
+  batch: 'Servings', batchHint: 'All amounts update everywhere, steps included.',
   units: 'Units', uOrig: 'As written', uMetric: 'Metric', uUS: 'US',
   unitsHint: 'Metric: grams, ml, °C. US: ounces, pounds, cups, °F. Teaspoons and tablespoons stay the same; cups are converted by volume.',
   backAt: 'back at', phoneHint: "Set a timer on your phone too — Easy Recipes can only ring while it's open.",
@@ -39,10 +39,10 @@ const T = {
   backupHint: "Your cookbook lives on this phone. If you uninstall the app or clear the browser data it's gone — so export a backup file now and then, and import it to restore.",
   lastBackup: 'Last backup', never: 'never',
   step: 'Step', of: 'of', prev: 'Back', next: 'Next', finish: 'Finished!',
-  doneTitle: 'Enjoy your meal!', doneText: 'You did it — every step, every dose. Time to eat!',
+  doneTitle: 'Enjoy your meal!', doneText: 'You did it — every step, every amount. Time to eat!',
   doneSave: 'Save to my cookbook', doneSaved: 'Already in your cookbook', doneBack: 'Back to the recipe', doneMore: 'Find something new',
   welcomeTitle: 'Hi, chef!', welcomeGo: 'Show me a first recipe', welcomeSkip: 'Just let me explore',
-  welcomePoints: [['🥄', 'Doses inside every step — no more back-and-forth'], ['⏱', 'Timers ready right where you need them'],
+  welcomePoints: [['🥄', 'Amounts inside every step — no more back-and-forth'], ['⏱', 'Timers ready right where you need them'],
     ['💛', 'Save your favourites: no account, it all stays on your phone']],
   awake: 'Screen stays on — keep the app open so timers can ring',
   timerDone: 'Done!', stop: 'Stop', alreadyRunning: 'That timer is already running',
@@ -62,7 +62,7 @@ const T = {
   srcMealDB: 'This recipe comes from <a href="https://www.themealdb.com" target="_blank" rel="noopener noreferrer">TheMealDB</a>, a free recipe database made by its community.',
   srcHouseOwn: 'Made by Easy Recipes 🐣',
   srcHouseBy: n => `Recipe by ${n}, shared with Easy Recipes 🐣`,
-  tips: 'Tips & notes', house: 'House recipes', moreCuisines: 'More cuisines', lessCuisines: 'Show fewer', home: 'Home', houseHint: 'Written for Easy Recipes, with doses and timers built in.',
+  tips: 'Tips & notes', house: 'House recipes', moreCuisines: 'More cuisines', lessCuisines: 'Show fewer', home: 'Home', houseHint: 'Written for Easy Recipes, with amounts and timers built in.',
   by: 'Recipe by', byShort: 'by',
   shareTitle: 'Got a recipe you love?',
   shareText: "Send it by email, with a photo of your dish. If it's chosen, it will be published here with your name. By sending it, you allow Easy Recipes to publish your recipe, your photo and the name you choose.",
@@ -83,7 +83,7 @@ const T = {
   /* Only for Wikibooks recipes someone saved before Wikibooks was removed (Oct 2026):
      they stay readable in "My cookbook", with the credit their licence asks for. */
   wbOpen: 'Open on Wikibooks', wbHistory: 'authors',
-  wbCredit: (link, hist) => `Adapted from ${link} in the Wikibooks Cookbook, written by its ${hist}, and shared under the <a href="https://creativecommons.org/licenses/by-sa/4.0/" target="_blank" rel="noopener noreferrer">CC BY-SA 4.0</a> licence. Easy Recipes reformatted it into steps with doses and timers.`,
+  wbCredit: (link, hist) => `Adapted from ${link} in the Wikibooks Cookbook, written by its ${hist}, and shared under the <a href="https://creativecommons.org/licenses/by-sa/4.0/" target="_blank" rel="noopener noreferrer">CC BY-SA 4.0</a> licence. Easy Recipes reformatted it into steps with amounts and timers.`,
 };
 
 /* ---------- Small helpers ---------- */
@@ -670,7 +670,7 @@ function viewSettings() {
     defServings = +b.dataset.def; store('er.servings', defServings);
     recipeState.forEach(st => { st.serv = null; });
     $$('[data-def]').forEach(x => x.setAttribute('aria-pressed', x === b));
-    toast(defServings ? `Recipes now open for ${defServings}` : 'Recipes open as written');
+    toast(defServings ? `Recipes now open for ${defServings} servings` : 'Recipes open as written');
   }));
   $$('[data-units]').forEach(b => b.addEventListener('click', () => {
     units = b.dataset.units; store('er.units', units);
@@ -688,7 +688,7 @@ const OTHER_APPS = [
     en: 'One deep question a day, to answer in your own paper journal. Free, no account.' },
   { id: 'quota', name: 'Quota', url: 'https://sandras-apps.github.io/quota-app/', live: false,
     en: 'Tells you how much you can spend today; save a little and tomorrow you have more. Free, no account.' },
-  { id: 'easy-recipes', name: 'Easy Recipes', url: APP_URL, live: false,
+  { id: 'easy-recipes', name: 'Easy Recipes', url: APP_URL, live: true,
     en: 'Simple recipes with the amounts inside every step and timers ready to go. Free, no account.' },
   { id: 'goatstep', name: 'Goatstep', url: '', live: false, en: '' },
   { id: 'moontick', name: 'MoonTick', url: 'https://getmoontick.com/', live: false, en: '' }

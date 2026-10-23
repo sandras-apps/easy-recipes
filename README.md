@@ -1,7 +1,7 @@
 # Easy Recipes 🐣
 
 A free recipe app with no account and no ads.
-Doses are repeated inside every step, and timers are ready right where you need them.
+Amounts are repeated inside every step, and timers are ready right where you need them.
 
 **Try it:** [sandras-apps.github.io/easy-recipes](https://sandras-apps.github.io/easy-recipes/)
 
@@ -10,15 +10,15 @@ Doses are repeated inside every step, and timers are ready right where you need 
 - Recipes from two places, mixed together in one A–Z list: **House recipes** written for the app
   and **TheMealDB** (with photos). The end of each recipe says where it comes from.
   Search by name, by ingredients (e.g. "chicken, garlic" finds recipes with both) or by author (House recipes), browse categories and cuisines, or tap "Surprise me".
-- **Doses inside every step**: next to each ingredient mentioned in a step, you see its dose.
-  If the step already says how much (e.g. "2 tablespoons of water"), no extra dose is added.
+- **Amounts inside every step**: next to each ingredient mentioned in a step, you see its amount.
+  If the step already says how much (e.g. "2 tablespoons of water"), no extra amount is added.
 - **Ready-made timers**: every duration in the text ("cook for 5 minutes", "1 to 2 minutes") is a button.
   Up to 15 minutes, tap it and the timer starts in the app. Longer times (a 2-hour rise, an hour in the oven)
   show the clock time to come back at instead, with a reminder to set a phone timer too.
   For ranges like "X to Y", the timer uses the shorter time, so you check early.
 - **Units**: switch between the recipe as written, metric (g, ml, °C) and US (oz, lb, cups, °F).
 - **Servings**: set your usual number once in Settings (e.g. 2) and every recipe opens for that many.
-  Change it on any recipe with − / + (a guest, or just you): every dose updates, steps included.
+  Change it on any recipe with − / + (a guest, or just you): every amount updates, steps included.
   TheMealDB recipes don't say how many they serve, so the app assumes 4.
 - **Cook mode**: one step at a time, big text, and the screen stays on.
 - **My cookbook**: save recipes with the heart, add your own notes, and use them offline.

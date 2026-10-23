@@ -1,7 +1,7 @@
 {
   "name": "Easy Recipes",
   "short_name": "Easy Recipes",
-  "description": "Free recipes with doses inside every step and timers right where you need them.",
+  "description": "Free recipes with the amounts inside every step and timers right where you need them.",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
