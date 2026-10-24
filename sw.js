@@ -1,6 +1,6 @@
 /* Easy Recipes service worker: makes the app work offline.
    Bump VERSION whenever you change the app files, so phones get the update. */
-const VERSION = 'er-v21';
+const VERSION = 'er-v22';
 const SHELL = [
   './', 'index.html', 'css/styles.css', 'js/app.js', 'manifest.webmanifest',
   'icons/chick-hello.webp', 'icons/chick-happy.webp', 'icons/chick-cheer.webp', 'icons/chick-spoon.webp',

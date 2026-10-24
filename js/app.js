@@ -1101,8 +1101,8 @@ async function viewMeal(id) {
     ${meal._kind ? '' : `<p class="photo-credit">${T.photoBy}</p>`}
     <h1 class="recipe-title">${esc(meal.strMeal)}</h1>
     <div class="tags">
-      ${areaOf(meal) ? `<span class="tag">${esc(areaOf(meal))}</span>` : ''}
-      ${catsOf(meal).map(c => `<span class="tag p">${esc(c)}</span>`).join('')}
+      ${areaOf(meal) ? `<a class="tag link" href="#/browse/a/${encodeURIComponent(areaOf(meal))}">${esc(areaOf(meal))}</a>` : ''}
+      ${catsOf(meal).map(c => `<a class="tag p link" href="#/browse/c/${encodeURIComponent(c)}">${esc(c)}</a>`).join('')}
       ${tags.map(t => `<span class="tag o">${esc(t)}</span>`).join('')}
       ${meal._time ? `<span class="tag y">⏱ ${esc(meal._time)}</span>` : ''}
     </div>

@@ -162,6 +162,10 @@ h3 { font-size: 1.15rem; }
 .tag { background: var(--green-soft); color: var(--ink); font-weight: 800; padding: 4px 14px; border-radius: 999px; font-size: .95rem; }
 .tag.p { background: var(--pink-soft); color: var(--ink); }
 .tag.o { background: var(--orange-soft); color: var(--ink); }
+a.tag.link { text-decoration: none; cursor: pointer; transition: filter .15s, transform .1s; }
+a.tag.link:hover { filter: brightness(.95); }
+a.tag.link:active { transform: scale(.96); }
+a.tag.link:focus-visible { outline: 3px solid var(--ink); outline-offset: 2px; }
 
 .box { background: var(--card); border-radius: var(--radius); padding: 18px; box-shadow: var(--shadow); margin-top: 18px; }
 .batch { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
