@@ -186,7 +186,9 @@ a.tag.link:focus-visible { outline: 3px solid var(--ink); outline-offset: 2px; }
 .ing-list img { width: 38px; height: 38px; object-fit: contain; }
 .ing-list .name { font-weight: 700; }
 .ing-list.noimg label { grid-template-columns: 26px 1fr; }
-.ing-list .inote { color: var(--ink-soft); font-size: .92em; }
+.ing-list .inote { color: var(--ink-soft); font-size: .92em; margin-left: .3em; }
+.ing-list .parts { display: flex; flex-direction: column; gap: 2px; margin-top: 4px; color: var(--ink-soft); font-size: .95em; }
+.ing-list .parts b { color: var(--ink); font-weight: 800; }
 .ing-list .qty { display: block; color: var(--orange-text); font-weight: 800; }
 .ing-list input:checked ~ span { text-decoration: line-through; opacity: .55; }
 

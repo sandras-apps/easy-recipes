@@ -1153,11 +1153,35 @@ function planDuplicates(ctx) {
     });
     return map;
   });
-  dups.forEach(g => g.forEach((i, k) => {
-    const st = stepsOf.get(i), ing = ctx.ings[i];
-    const note = st ? `for step ${st.join(', ')}` : 'also used in another part (e.g. a sauce or topping)';
-    ing.note = ing.note ? `${ing.note} · ${note}` : note;
-  }));
+  ctx.dupGroups = dups; ctx.dupSteps = stepsOf;
+}
+/* One row per ingredient: amounts listed twice are added up, with the split underneath. */
+function sumMeasures(list) {
+  const NUMS = /^\s*(\d+\s+\d+\/\d+|\d+\/\d+|\d+(?:[.,]\d+)?\s*[½¼¾⅓⅔]?|[½¼¾⅓⅔])\s*(.*)$/;
+  let unit = null, total = 0;
+  for (const m of list) {
+    const r = (m || '').match(NUMS); if (!r) return null;
+    const v = parseNum(r[1]), u = r[2].trim().toLowerCase();
+    if (!isFinite(v) || (unit !== null && u !== unit)) return null;
+    unit = u; total += v;
+  }
+  return `${Math.round(total * 1000) / 1000}${/^(g|kg|ml|l)$/.test(unit) ? '' : ' '}${list[0].match(NUMS)[2].trim()}`;
+}
+function ingRows(ctx) {
+  const rows = [], inGroup = new Map();
+  (ctx.dupGroups || []).forEach(g => g.forEach(i => inGroup.set(i, g)));
+  ctx.ings.forEach((ing, i) => {
+    const g = inGroup.get(i);
+    if (!g) { rows.push({ i, ing, qty: ing.measure ? doseOut(ing.measure, ctx.mult, ing.fixed) : '' }); return; }
+    if (g[0] !== i) return;
+    const sum = sumMeasures(g.map(k => ctx.ings[k].measure));
+    const parts = g.map(k => {
+      const st = ctx.dupSteps.get(k), m = ctx.ings[k].measure;
+      return { where: st ? (st.length > 1 ? 'Steps ' : 'Step ') + st.join(', ') : 'Other part', qty: m ? doseOut(m, ctx.mult, ctx.ings[k].fixed) : '' };
+    });
+    rows.push({ i, ing, qty: sum ? doseOut(sum, ctx.mult, ing.fixed) : '', parts });
+  });
+  return rows;
 }
 
 async function viewMeal(id) {
@@ -1225,11 +1249,11 @@ async function viewMeal(id) {
 
   const render = () => {
     const ctx = makeCtx(meal);
-    $('#ings').innerHTML = ctx.ings.map((ing, i) => `
+    $('#ings').innerHTML = ingRows(ctx).map(({ i, ing, qty, parts }) => `
       <li><label>
         <input type="checkbox" data-i="${i}" ${st.checked.has(i) ? 'checked' : ''}>
         ${meal._kind ? '' : `<img src="${ING_IMG + encodeURIComponent(ing.name.replace(/ /g, '_'))}-small.png" alt="" loading="lazy" onerror="this.style.visibility='hidden'">`}
-        <span><span class="name">${esc(ing.name)}</span>${ing.note ? `<span class="inote">${esc(ing.note)}</span>` : ''}${ing.measure ? `<span class="qty">${esc(doseOut(ing.measure, ctx.mult, ing.fixed))}</span>` : ''}</span>
+        <span><span class="name">${esc(ing.name)}</span>${ing.note ? `<span class="inote">${esc(ing.note)}</span>` : ''}${qty ? `<span class="qty">${esc(qty)}</span>` : ''}${parts ? `<span class="parts">${parts.map(p => `<span><b>${esc(p.where)}</b> → ${esc(p.qty)}</span>`).join('')}</span>` : ''}</span>
       </label></li>`).join('');
     $('#steps').innerHTML = ctx.steps.map((s, i) => `
       <li class="${st.done.has(i) ? 'done' : ''}">
