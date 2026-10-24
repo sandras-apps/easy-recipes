@@ -565,30 +565,84 @@ const AREA_ALIAS = {
   'Australia': 'Australian', 'Canada': 'Canadian', 'Syria': 'Syrian', 'Saudi Arabia': 'Saudi Arabian',
   'Algeria': 'Algerian', 'Vietnam': 'Vietnamese',
 };
+/* Newer TheMealDB recipes have no cuisine, only a country (strCountry): we turn it into a cuisine. */
+const COUNTRY_CUISINE = {
+  'Afghanistan': 'Afghan', 'Albania': 'Albanian', 'Andorra': 'Andorran', 'Angola': 'Angolan',
+  'Antigua and Barbuda': 'Antiguan', 'Argentina': 'Argentinian', 'Armenia': 'Armenian', 'Aruba': 'Aruban',
+  'Australia': 'Australian', 'Austria': 'Austrian', 'Azerbaijan': 'Azerbaijani', 'Bahamas': 'Bahamian',
+  'Bahrain': 'Bahraini', 'Bangladesh': 'Bangladeshi', 'Barbados': 'Barbadian', 'Belarus': 'Belarusian',
+  'Belgium': 'Belgian', 'Belize': 'Belizean', 'Benin': 'Beninese', 'Bermuda': 'Bermudian', 'Bhutan': 'Bhutanese',
+  'Bolivia': 'Bolivian', 'Bosnia and Herzegovina': 'Bosnian', 'Botswana': 'Botswanan', 'Brazil': 'Brazilian',
+  'Brunei': 'Bruneian', 'Bulgaria': 'Bulgarian', 'Cambodia': 'Cambodian', 'Cameroon': 'Cameroonian',
+  'Cayman Islands': 'Caymanian', 'Chile': 'Chilean', 'Colombia': 'Colombian', 'Costa Rica': 'Costa Rican',
+  'Cuba': 'Cuban', 'Cyprus': 'Cypriot', 'Czech Republic': 'Czech', 'Czechia': 'Czech', 'Denmark': 'Danish',
+  'Dominica': 'Dominican', 'Dominican Republic': 'Dominican', 'Ecuador': 'Ecuadorian', 'El Salvador': 'Salvadoran',
+  'Estonia': 'Estonian', 'Ethiopia': 'Ethiopian', 'Fiji': 'Fijian', 'Finland': 'Finnish', 'Georgia': 'Georgian',
+  'Germany': 'German', 'Ghana': 'Ghanaian', 'Guatemala': 'Guatemalan', 'Haiti': 'Haitian', 'Honduras': 'Honduran',
+  'Hungary': 'Hungarian', 'Iceland': 'Icelandic', 'Indonesia': 'Indonesian', 'Iran': 'Iranian', 'Iraq': 'Iraqi',
+  'Israel': 'Israeli', 'Jordan': 'Jordanian', 'Laos': 'Laotian', 'Latvia': 'Latvian', 'Lebanon': 'Lebanese',
+  'Lithuania': 'Lithuanian', 'Nepal': 'Nepalese', 'New Zealand': 'New Zealand', 'Nigeria': 'Nigerian',
+  'Pakistan': 'Pakistani', 'Peru': 'Peruvian', 'Romania': 'Romanian', 'Senegal': 'Senegalese', 'Serbia': 'Serbian',
+  'Singapore': 'Singaporean', 'South Africa': 'South African', 'South Korea': 'Korean', 'Korea': 'Korean',
+  'Sri Lanka': 'Sri Lankan', 'Sweden': 'Swedish', 'Switzerland': 'Swiss', 'Taiwan': 'Taiwanese',
+  'Trinidad and Tobago': 'Trinidadian', 'Yemen': 'Yemeni',
+};
 const areaName = a => { const t = (a || '').trim(); return t === 'Unknown' ? '' : (AREA_ALIAS[t] || t); };
+const areaOf = m => areaName(m && m.strArea) || areaName(m && m.strCountry && (COUNTRY_CUISINE[m.strCountry.trim()] || m.strCountry));
+
+/* Recipes TheMealDB filed in the wrong category: add/remove categories by recipe id. */
+const CAT_FIX = {
+  '52783': { add: ['Pasta', 'Pork'], remove: ['Lamb'] },          // Rigatoni with fennel sausage sauce (pork sausage)
+  '53014': { add: ['Complete meal', 'Vegetarian'], remove: ['Miscellaneous'] }, // Pizza Express Margherita
+  '53330': { add: ['Complete meal'] },                              // Cassava pizza
+  '52770': { add: ['Pasta'] },  // Spaghetti Bolognese
+  '52796': { add: ['Pasta'] },  // Chicken Alfredo Primavera
+  '52771': { add: ['Pasta'] },  // Spicy Arrabiata Penne
+  '52866': { add: ['Pasta'] },  // Squash linguine
+  '52849': { add: ['Pasta'] },  // Spinach & Ricotta Cannelloni
+  '52775': { add: ['Pasta'] },  // Vegan Lasagna
+  '53177': { add: ['Pasta'] },  // Spaghetti with Spanish flavours
+  '52777': { add: ['Pasta'] },  // Mediterranean Pasta Salad
+};
+const fixOf = m => (m && CAT_FIX[m.idMeal]) || {};
+function catsOf(m) {
+  if (m._cats) return m._cats;
+  const f = fixOf(m), rm = (f.remove || []).map(c => c.toLowerCase());
+  return [...new Set([m.strCategory, ...(f.add || [])].filter(c => c && !rm.includes(c.toLowerCase())))];
+}
+/* Recipes our fixes move INTO these categories (fetched by id), and ids moved OUT. */
+async function fixedInto(cats) {
+  const want = cats.map(c => c.toLowerCase());
+  const ids = Object.keys(CAT_FIX).filter(id => (CAT_FIX[id].add || []).some(c => want.includes(c.toLowerCase())));
+  const res = await Promise.all(ids.map(id => api('lookup.php?i=' + id).then(d => d.meals && d.meals[0]).catch(() => null)));
+  return res.filter(Boolean);
+}
+const fixedOut = cats => new Set(Object.keys(CAT_FIX).filter(id => (CAT_FIX[id].remove || []).some(c => cats.map(x => x.toLowerCase()).includes(c.toLowerCase()))));
+
 /* Every spelling TheMealDB might use for one cuisine. */
 function areaSpellings(name) {
   const n = areaName(name), out = new Set([n]);
   Object.entries(AREA_ALIAS).forEach(([raw, to]) => { if (to === n) out.add(raw); });
-  const seen = load('er.areas2', null);
+  const seen = load('er.areas3', null);
   ((seen && seen.v && seen.v[n]) || []).forEach(r => out.add(r));
   return [...out];
 }
 
 /* Which cuisines actually have recipes? Count them once a week (26 small requests, a–z). */
 async function areaCounts() {
-  const cached = load('er.areas2', null);
+  const cached = load('er.areas3', null);
   if (cached && Date.now() - cached.t < 7 * 864e5) return cached.c;
   const letters = 'abcdefghijklmnopqrstuvwxyz'.split('');
   const res = await Promise.all(letters.map(l => api('search.php?f=' + l).catch(() => null)));
   if (res.some(r => r === null)) throw new Error('partial');
-  const c = {}, v = {};
+  const c = {}, v = {}, x = {};
   res.forEach(r => (r.meals || []).forEach(m => {
-    const raw = (m.strArea || '').trim(), n = areaName(raw); if (!n) return;
+    const raw = (m.strArea || '').trim(), n = areaOf(m); if (!n) return;
     c[n] = (c[n] || 0) + 1;
-    (v[n] = v[n] || []).includes(raw) || v[n].push(raw);
+    if (areaName(raw)) (v[n] = v[n] || []).includes(raw) || v[n].push(raw);
+    else (x[n] = x[n] || []).push({ idMeal: m.idMeal, strMeal: m.strMeal, strMealThumb: m.strMealThumb });
   }));
-  store('er.areas2', { t: Date.now(), c, v });
+  store('er.areas3', { t: Date.now(), c, v, x });
   return c;
 }
 function renderAreas(names, open) {
@@ -649,7 +703,7 @@ async function renderSurprise(fresh) {
         <button class="btn soft small" type="button" id="again">${ICON.dice} ${T.another}</button></div>
       <a class="feature" href="${mealHref(m.idMeal)}">
         ${picHTML(thumb(m.strMealThumb, 'medium'), 'pic', m.strMeal)}
-        <div><span class="kicker">${esc([areaName(m.strArea), m.strCategory].filter(Boolean).join(' · '))}</span>
+        <div><span class="kicker">${esc([areaOf(m), catsOf(m)[0]].filter(Boolean).join(' · '))}</span>
         <h3>${esc(m.strMeal)}</h3></div></a>`;
     $('#again').addEventListener('click', () => renderSurprise(true));
   } catch { box.innerHTML = ''; }
@@ -658,7 +712,7 @@ async function renderSurprise(fresh) {
 /* Course categories collect recipes from TheMealDB categories + House recipes */
 const COURSES = {
   'first courses': { mdb: ['Pasta'] },
-  'second courses': { mdb: ['Beef', 'Chicken', 'Lamb', 'Pork', 'Seafood', 'Goat'] },
+  'second courses': { mdb: ['Beef', 'Chicken', 'Lamb', 'Pork', 'Seafood', 'Goat'], notPasta: true },
 };
 async function viewBrowse(kind, value) {
   view.innerHTML = `
@@ -666,13 +720,24 @@ async function viewBrowse(kind, value) {
     <div id="list">${loadingHTML}</div>
     ${creditsHTML()}`;
   const course = kind === 'c' && COURSES[value.toLowerCase()];
-  const html = await mergedHTML(course ? [
-    loadHouse().then(list => list.filter(m => houseInBrowse(m, kind, value))),
-    ...course.mdb.map(c => api('filter.php?c=' + encodeURIComponent(c)).then(d => d.meals || [])),
-  ] : [
-    loadHouse().then(list => list.filter(m => houseInBrowse(m, kind, value))),
-    ...(kind === 'a' ? areaSpellings(value) : [value]).map(v => api(`filter.php?${kind}=${encodeURIComponent(v)}`).then(d => d.meals || [])),
-  ]);
+  const house = loadHouse().then(list => list.filter(m => houseInBrowse(m, kind, value)));
+  let sources;
+  if (kind === 'a') {
+    sources = [house,
+      ...areaSpellings(value).map(v => api('filter.php?a=' + encodeURIComponent(v)).then(d => d.meals || [])),
+      areaCounts().catch(() => null).then(() => { const s = load('er.areas3', null); return (s && s.x && s.x[areaName(value)]) || []; }),
+    ];
+  } else {
+    const cats = course ? course.mdb : [value];
+    const out = fixedOut(cats);
+    /* Pasta dishes filed under a meat go to First courses, not Second courses. */
+    if (course && course.notPasta) Object.keys(CAT_FIX).forEach(id => (CAT_FIX[id].add || []).includes('Pasta') && out.add(id));
+    sources = [house,
+      ...cats.map(c => api('filter.php?c=' + encodeURIComponent(c)).then(d => (d.meals || []).filter(m => !out.has(m.idMeal)))),
+      fixedInto(course ? [...cats, value] : cats),
+    ];
+  }
+  const html = await mergedHTML(sources);
   const el = $('#list'); if (el) el.innerHTML = html;
 }
 
@@ -1036,8 +1101,8 @@ async function viewMeal(id) {
     ${meal._kind ? '' : `<p class="photo-credit">${T.photoBy}</p>`}
     <h1 class="recipe-title">${esc(meal.strMeal)}</h1>
     <div class="tags">
-      ${areaName(meal.strArea) ? `<span class="tag">${esc(areaName(meal.strArea))}</span>` : ''}
-      ${(meal._cats || (meal.strCategory ? [meal.strCategory] : [])).map(c => `<span class="tag p">${esc(c)}</span>`).join('')}
+      ${areaOf(meal) ? `<span class="tag">${esc(areaOf(meal))}</span>` : ''}
+      ${catsOf(meal).map(c => `<span class="tag p">${esc(c)}</span>`).join('')}
       ${tags.map(t => `<span class="tag o">${esc(t)}</span>`).join('')}
       ${meal._time ? `<span class="tag y">⏱ ${esc(meal._time)}</span>` : ''}
     </div>
@@ -1182,7 +1247,7 @@ function viewSaved() {
       <a class="list-item" href="${mealHref(meal.idMeal)}">
         ${picHTML(thumbOf(meal, 'small'), 'pic', meal.strMeal)}
         <span><span class="title-font" style="font-size:1.1rem;display:block">${esc(meal.strMeal)}</span>
-        <span class="meta">${esc([areaName(meal.strArea), meal.strCategory].filter(Boolean).join(' · '))}${note ? ' · 📝' : ''}</span></span>
+        <span class="meta">${esc([areaOf(meal), catsOf(meal)[0]].filter(Boolean).join(' · '))}${note ? ' · 📝' : ''}</span></span>
         <span aria-hidden="true" style="color:var(--pink-ink)">${ICON.heartFull}</span>
       </a>`).join('') : emptyHTML(T.emptyBook)}
     <div class="box">
