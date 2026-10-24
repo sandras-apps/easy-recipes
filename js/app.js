@@ -511,10 +511,11 @@ async function viewHome(params) {
     $('#cats').innerHTML = extra.map(c => `<a class="chip no-img" data-extra="${esc(c)}" href="#/browse/c/${encodeURIComponent(c)}">${esc(c)}</a>`).join('') + (cats.categories || []).map(c =>
       `<a class="chip" href="#/browse/c/${encodeURIComponent(c.strCategory)}"><img src="${esc(c.strCategoryThumb)}" alt="" loading="lazy">${esc(c.strCategory)}</a>`).join('');
     fillCategoryPhotos();
-    let names = (areas.meals || []).map(a => a.strArea).filter(a => a && a !== 'Unknown').sort();
     const counts = await areaCounts().catch(() => null);
-    const houseAreas = (await loadHouse()).map(m => m.strArea).filter(Boolean);
-    if (counts) names = names.filter(a => counts[a] > 0 || houseAreas.includes(a));
+    const houseAreas = (await loadHouse()).map(m => areaName(m.strArea)).filter(Boolean);
+    /* With counts: only cuisines that really have recipes. Without (offline): TheMealDB's list. */
+    let names = counts ? Object.keys(counts).filter(a => counts[a] > 0) : (areas.meals || []).map(a => areaName(a.strArea));
+    names = [...new Set([...names, ...houseAreas])].filter(Boolean).sort((a, b) => a.localeCompare(b, 'en'));
     renderAreas(names);
   } catch {
     $('#cats').innerHTML = '';
@@ -549,16 +550,45 @@ function fillCategoryPhotos() {
   });
 }
 
+/* TheMealDB writes some cuisines as a country ("India", "France", "United States")
+   while its own cuisine list uses the adjective ("Indian", "French", "American").
+   We show one name per cuisine and, when browsing it, ask for every spelling. */
+const AREA_ALIAS = {
+  'India': 'Indian', 'France': 'French', 'United States': 'American', 'USA': 'American',
+  'Argentina': 'Argentinian', 'Argentine': 'Argentinian', 'Netherlands': 'Dutch', 'Norway': 'Norwegian',
+  'Slovakia': 'Slovak', 'Slovakian': 'Slovak', 'Venezuela': 'Venezuelan', 'Venezulan': 'Venezuelan',
+  'United Kingdom': 'British', 'UK': 'British', 'England': 'British', 'Ireland': 'Irish', 'Italy': 'Italian',
+  'Spain': 'Spanish', 'Mexico': 'Mexican', 'Japan': 'Japanese', 'China': 'Chinese', 'Greece': 'Greek',
+  'Poland': 'Polish', 'Portugal': 'Portuguese', 'Russia': 'Russian', 'Turkey': 'Turkish', 'Ukraine': 'Ukrainian',
+  'Philippines': 'Filipino', 'Malaysia': 'Malaysian', 'Morocco': 'Moroccan', 'Kenya': 'Kenyan', 'Egypt': 'Egyptian',
+  'Tunisia': 'Tunisian', 'Croatia': 'Croatian', 'Jamaica': 'Jamaican', 'Thailand': 'Thai', 'Uruguay': 'Uruguayan',
+  'Australia': 'Australian', 'Canada': 'Canadian', 'Syria': 'Syrian', 'Saudi Arabia': 'Saudi Arabian',
+  'Algeria': 'Algerian', 'Vietnam': 'Vietnamese',
+};
+const areaName = a => { const t = (a || '').trim(); return t === 'Unknown' ? '' : (AREA_ALIAS[t] || t); };
+/* Every spelling TheMealDB might use for one cuisine. */
+function areaSpellings(name) {
+  const n = areaName(name), out = new Set([n]);
+  Object.entries(AREA_ALIAS).forEach(([raw, to]) => { if (to === n) out.add(raw); });
+  const seen = load('er.areas2', null);
+  ((seen && seen.v && seen.v[n]) || []).forEach(r => out.add(r));
+  return [...out];
+}
+
 /* Which cuisines actually have recipes? Count them once a week (26 small requests, a–z). */
 async function areaCounts() {
-  const cached = load('er.areas', null);
+  const cached = load('er.areas2', null);
   if (cached && Date.now() - cached.t < 7 * 864e5) return cached.c;
   const letters = 'abcdefghijklmnopqrstuvwxyz'.split('');
   const res = await Promise.all(letters.map(l => api('search.php?f=' + l).catch(() => null)));
   if (res.some(r => r === null)) throw new Error('partial');
-  const c = {};
-  res.forEach(r => (r.meals || []).forEach(m => { if (m.strArea) c[m.strArea] = (c[m.strArea] || 0) + 1; }));
-  store('er.areas', { t: Date.now(), c });
+  const c = {}, v = {};
+  res.forEach(r => (r.meals || []).forEach(m => {
+    const raw = (m.strArea || '').trim(), n = areaName(raw); if (!n) return;
+    c[n] = (c[n] || 0) + 1;
+    (v[n] = v[n] || []).includes(raw) || v[n].push(raw);
+  }));
+  store('er.areas2', { t: Date.now(), c, v });
   return c;
 }
 function renderAreas(names, open) {
@@ -619,7 +649,7 @@ async function renderSurprise(fresh) {
         <button class="btn soft small" type="button" id="again">${ICON.dice} ${T.another}</button></div>
       <a class="feature" href="${mealHref(m.idMeal)}">
         ${picHTML(thumb(m.strMealThumb, 'medium'), 'pic', m.strMeal)}
-        <div><span class="kicker">${esc(m.strArea || '')} · ${esc(m.strCategory || '')}</span>
+        <div><span class="kicker">${esc([areaName(m.strArea), m.strCategory].filter(Boolean).join(' · '))}</span>
         <h3>${esc(m.strMeal)}</h3></div></a>`;
     $('#again').addEventListener('click', () => renderSurprise(true));
   } catch { box.innerHTML = ''; }
@@ -641,7 +671,7 @@ async function viewBrowse(kind, value) {
     ...course.mdb.map(c => api('filter.php?c=' + encodeURIComponent(c)).then(d => d.meals || [])),
   ] : [
     loadHouse().then(list => list.filter(m => houseInBrowse(m, kind, value))),
-    api(`filter.php?${kind}=${encodeURIComponent(value)}`).then(d => d.meals || []),
+    ...(kind === 'a' ? areaSpellings(value) : [value]).map(v => api(`filter.php?${kind}=${encodeURIComponent(v)}`).then(d => d.meals || [])),
   ]);
   const el = $('#list'); if (el) el.innerHTML = html;
 }
@@ -849,13 +879,13 @@ function loadHouse() {
 }
 function houseInBrowse(meal, kind, value) {
   const v = value.toLowerCase();
-  return kind === 'a' ? meal.strArea.toLowerCase() === v : meal._cats.some(c => c.toLowerCase() === v);
+  return kind === 'a' ? areaName(meal.strArea).toLowerCase() === areaName(value).toLowerCase() : meal._cats.some(c => c.toLowerCase() === v);
 }
 function houseMatches(meal, q, by) {
   const n = q.toLowerCase();
   if (by === 'ing') return ingWords(q).every(w => meal._ings.some(i => i.name.toLowerCase().includes(w)));
   if (by === 'author') return (meal._author || 'Easy Recipes').toLowerCase().includes(n);
-  return [meal.strMeal, meal._cats.join(' '), meal.strArea, meal.strTags].join(' ').toLowerCase().includes(n);
+  return [meal.strMeal, meal._cats.join(' '), areaName(meal.strArea), meal.strTags].join(' ').toLowerCase().includes(n);
 }
 
 /* "Share your recipe" box — only shown when CONTACT_EMAIL is set */
@@ -1006,7 +1036,7 @@ async function viewMeal(id) {
     ${meal._kind ? '' : `<p class="photo-credit">${T.photoBy}</p>`}
     <h1 class="recipe-title">${esc(meal.strMeal)}</h1>
     <div class="tags">
-      ${meal.strArea && meal.strArea !== 'Unknown' ? `<span class="tag">${esc(meal.strArea)}</span>` : ''}
+      ${areaName(meal.strArea) ? `<span class="tag">${esc(areaName(meal.strArea))}</span>` : ''}
       ${(meal._cats || (meal.strCategory ? [meal.strCategory] : [])).map(c => `<span class="tag p">${esc(c)}</span>`).join('')}
       ${tags.map(t => `<span class="tag o">${esc(t)}</span>`).join('')}
       ${meal._time ? `<span class="tag y">⏱ ${esc(meal._time)}</span>` : ''}
@@ -1152,7 +1182,7 @@ function viewSaved() {
       <a class="list-item" href="${mealHref(meal.idMeal)}">
         ${picHTML(thumbOf(meal, 'small'), 'pic', meal.strMeal)}
         <span><span class="title-font" style="font-size:1.1rem;display:block">${esc(meal.strMeal)}</span>
-        <span class="meta">${esc([meal.strArea, meal.strCategory].filter(Boolean).join(' · '))}${note ? ' · 📝' : ''}</span></span>
+        <span class="meta">${esc([areaName(meal.strArea), meal.strCategory].filter(Boolean).join(' · '))}${note ? ' · 📝' : ''}</span></span>
         <span aria-hidden="true" style="color:var(--pink-ink)">${ICON.heartFull}</span>
       </a>`).join('') : emptyHTML(T.emptyBook)}
     <div class="box">
