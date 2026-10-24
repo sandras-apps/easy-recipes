@@ -71,7 +71,7 @@ const T = {
   shareBody: [
     'Hi Easy Recipes!', '', 'Here is my recipe.', '',
     'Recipe name:', '', 'Serves (how many people):', '', 'Total time:', '',
-    'Categories (e.g. Pasta, Dessert, Vegetarian, Vegan, Starter, First courses, Complete meal):', '',
+    'Categories (e.g. Pasta, Dessert, Vegetarian, Vegan, Starter, First courses):', '',
     'Cuisine (e.g. Italian, Mexican, Indian — or leave empty):', '',
     'Ingredients (with quantities):', '', '', 'Steps:', '', '', 'Tips (optional):', '', '',
     'Name to show as the author (your name or a nickname):', '',
@@ -333,7 +333,8 @@ function stepHTML(text, ctx, stepIdx) {
     if (mk.kind === 'timer') {
       html += timerHTML(mk.sec, piece, `${ctx.id}:${stepIdx}:${tIdx++}`, stepIdx + 1);
     } else {
-      const ing = ctx.ings[mk.i];
+      const plan = ctx.dupPlan && ctx.dupPlan[stepIdx];
+      const ing = ctx.ings[(plan && plan.has(mk.i)) ? plan.get(mk.i) : mk.i];
       const dose = doseOut(ing.measure, ctx.mult, ing.fixed);
       html += `<span class="ing">${esc(piece)}</span>` + (dose && !mk.explicit ? `<span class="dose">${esc(dose)}</span>` : '');
     }
@@ -525,11 +526,10 @@ async function viewHome(params) {
   }
 }
 
-/* Our own categories (First courses, Complete meal…) have no TheMealDB picture,
+/* Our own categories (First courses, Second courses…) have no TheMealDB picture,
    so each one gets a fixed photo of one of its recipes — always the same, like the others.
    To change one, put another recipe photo here. */
 const CATEGORY_PHOTO = {
-  'complete meal': 'my-recipes/photos/pan-pizza.webp',
   'first courses': 'my-recipes/photos/pasta-al-pomodoro.webp',
   'second courses': 'https://www.themealdb.com/images/media/meals/vtqxtu1511784197.jpg/small', // Beef Bourguignon
 };
@@ -595,8 +595,7 @@ const areaOf = m => areaName(m && m.strArea) || areaName(m && m.strCountry && (C
 /* Recipes TheMealDB filed in the wrong category: add/remove categories by recipe id. */
 const CAT_FIX = {
   '52783': { add: ['Pasta', 'Pork'], remove: ['Lamb'] },          // Rigatoni with fennel sausage sauce (pork sausage)
-  '53014': { add: ['Complete meal', 'Vegetarian'], remove: ['Miscellaneous'] }, // Pizza Express Margherita
-  '53330': { add: ['Complete meal'] },                              // Cassava pizza
+  '53014': { add: ['Vegetarian'], remove: ['Miscellaneous'] },     // Pizza Express Margherita
   '52770': { add: ['Pasta'] },  // Spaghetti Bolognese
   '52796': { add: ['Pasta'] },  // Chicken Alfredo Primavera
   '52771': { add: ['Pasta'] },  // Spicy Arrabiata Penne
@@ -1129,7 +1128,36 @@ function makeCtx(meal) {
   const ings = getIngredients(meal);
   const steps = Array.isArray(meal._steps) ? meal._steps : splitSteps(meal.strInstructions);
   const sv = servingsFor(meal);
-  return { id: meal.idMeal, ings, matchers: buildMatchers(ings), steps, mult: sv.mult, serv: sv.serv };
+  const ctx = { id: meal.idMeal, ings, matchers: buildMatchers(ings), steps, mult: sv.mult, serv: sv.serv };
+  planDuplicates(ctx);
+  return ctx;
+}
+/* Some recipes list the same ingredient twice, one for each part (vanilla in the dough
+   and again in the sauce). The 1st mention in the steps gets the 1st amount, the 2nd the 2nd,
+   and the list says which step each one is for. */
+function planDuplicates(ctx) {
+  const groups = new Map();
+  ctx.ings.forEach((ing, i) => { const k = ing.name.toLowerCase().replace(/\s+/g, ' ').trim(); groups.set(k, [...(groups.get(k) || []), i]); });
+  const dups = [...groups.values()].filter(g => g.length > 1);
+  if (!dups.length) return;
+  const groupOf = new Map(); dups.forEach(g => g.forEach(i => groupOf.set(i, g)));
+  const used = new Map(), stepsOf = new Map();
+  ctx.dupPlan = ctx.steps.map((text, si) => {
+    const map = new Map();
+    if (Array.isArray(text)) return map;
+    findIngredients(text, ctx.matchers, findDurations(text)).forEach(f => {
+      const g = groupOf.get(f.i); if (!g) return;
+      const n = used.get(g) || 0, to = g[Math.min(n, g.length - 1)];
+      used.set(g, n + 1); map.set(f.i, to);
+      stepsOf.set(to, [...(stepsOf.get(to) || []), si + 1]);
+    });
+    return map;
+  });
+  dups.forEach(g => g.forEach((i, k) => {
+    const st = stepsOf.get(i), ing = ctx.ings[i];
+    const note = st ? `for step ${st.join(', ')}` : 'also used in another part (e.g. a sauce or topping)';
+    ing.note = ing.note ? `${ing.note} · ${note}` : note;
+  }));
 }
 
 async function viewMeal(id) {
