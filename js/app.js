@@ -510,8 +510,12 @@ async function viewHome(params) {
     const [cats, areas] = await Promise.all([api('categories.php'), api('list.php?a=list')]);
     const mdbCats = (cats.categories || []).map(c => c.strCategory.toLowerCase());
     const extra = [...new Set(['First courses', 'Second courses', ...(await loadHouse()).flatMap(m => m._cats)])].filter(c => !mdbCats.includes(c.toLowerCase())).sort();
-    $('#cats').innerHTML = extra.map(c => `<a class="chip no-img" data-extra="${esc(c)}" href="#/browse/c/${encodeURIComponent(c)}">${esc(c)}</a>`).join('') + (cats.categories || []).map(c =>
-      `<a class="chip" href="#/browse/c/${encodeURIComponent(c.strCategory)}"><img src="${esc(c.strCategoryThumb)}" alt="" loading="lazy">${esc(c.strCategory)}</a>`).join('');
+    /* Our categories and TheMealDB's, all together A–Z */
+    const chips = [
+      ...extra.map(c => ({ n: c, html: `<a class="chip no-img" data-extra="${esc(c)}" href="#/browse/c/${encodeURIComponent(c)}">${esc(c)}</a>` })),
+      ...(cats.categories || []).map(c => ({ n: c.strCategory, html: `<a class="chip" href="#/browse/c/${encodeURIComponent(c.strCategory)}"><img src="${esc(c.strCategoryThumb)}" alt="" loading="lazy">${esc(c.strCategory)}</a>` })),
+    ].sort((a, b) => a.n.localeCompare(b.n, 'en', { sensitivity: 'base' }));
+    $('#cats').innerHTML = chips.map(c => c.html).join('');
     fillCategoryPhotos();
     const counts = await areaCounts().catch(() => null);
     const houseAreas = (await loadHouse()).map(m => areaName(m.strArea)).filter(Boolean);
@@ -687,7 +691,7 @@ async function dishLists() {
 async function renderDishes() {
   const box = $('#dishes'); if (!box) return;
   const lists = await dishLists();
-  const names = DISH_TYPES.map(t => t.name).filter(n => lists[n].length >= DISH_MIN);
+  const names = DISH_TYPES.map(t => t.name).filter(n => lists[n].length >= DISH_MIN).sort((a, b) => a.localeCompare(b, 'en', { sensitivity: 'base' }));
   if (!names.length) return;
   box.innerHTML = names.map(n => { const m = lists[n].find(x => x.strMealThumb), pic = m ? thumbOf(m, 'small') : '';
     return `<a class="chip${pic ? '' : ' no-img'}" href="#/browse/d/${encodeURIComponent(n)}">${pic ? `<img src="${esc(pic)}" alt="" loading="lazy">` : ''}${esc(n)}</a>`; }).join('');
