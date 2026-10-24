@@ -21,7 +21,7 @@ let view = $('#view');
 const T = {
   searchPh: 'Search recipes…', byName: 'By name', byIng: 'By ingredient', byAuthor: 'By author', go: 'Go',
   authorHint: 'Authors are shown on House recipes — the ones written for Easy Recipes or sent in by people like you.',
-  surprise: 'Surprise me', another: 'Another one', categories: 'Categories', cuisines: 'Cuisines',
+  surprise: 'Surprise me', another: 'Another one', categories: 'Categories', cuisines: 'Cuisines', dishes: 'Dishes',
   results: 'Results', noResults: "No recipes found. Try another word!",
   offline: "Can't reach the recipe kitchen right now. Check your connection — your saved recipes still work offline.",
   back: 'Back', save: 'Save', saved: 'Saved', ingredients: 'Ingredients', steps: 'Steps',
@@ -486,6 +486,7 @@ async function viewHome(params) {
     <div id="results"></div>
     <section class="section" id="surprise"></section>
     <section class="section"><div class="section-head"><h2>${T.categories}</h2></div><div class="chips" id="cats">${loadingHTML}</div></section>
+    <section class="section" id="dishSec" hidden><div class="section-head"><h2>${T.dishes}</h2></div><div class="chips" id="dishes"></div></section>
     <section class="section"><div class="section-head"><h2>${T.cuisines}</h2></div><div class="chips" id="areas"></div></section>
     ${creditsHTML()}`;
 
@@ -517,6 +518,7 @@ async function viewHome(params) {
     let names = counts ? Object.keys(counts).filter(a => counts[a] > 0) : (areas.meals || []).map(a => areaName(a.strArea));
     names = [...new Set([...names, ...houseAreas])].filter(Boolean).sort((a, b) => a.localeCompare(b, 'en'));
     renderAreas(names);
+    renderDishes();
   } catch {
     $('#cats').innerHTML = '';
     if (!q) $('#results').innerHTML = emptyHTML(T.offline);
@@ -619,31 +621,78 @@ async function fixedInto(cats) {
 }
 const fixedOut = cats => new Set(Object.keys(CAT_FIX).filter(id => (CAT_FIX[id].remove || []).some(c => cats.map(x => x.toLowerCase()).includes(c.toLowerCase()))));
 
+/* Dish types: a recipe belongs to one when its name matches. `only` = TheMealDB categories it must be in, `not` = names to skip. */
+const DISH_TYPES = [
+  { name: 'Curry', re: /\bcurr(y|ies|ied)\b|\bkorma\b|\bvindaloo\b|\bmassaman\b|\bpanang\b|rogan josh|tikka masala|\brendang\b|\bamok\b|\bkari\b|\bdal\b|matar paneer|baingan bharta|\bhandi\b/i },
+  { name: 'Soups', re: /\bsoup\b|chowder|\bbisque\b|\bbroth\b|borsch|bortsch|\bpho\b|gazpacho|ajo blanco|tom yum|tom kha|\bsnert\b|\bcorba\b|\bchorba\b|\bribollita\b|\bpistou\b|\blaksa\b|\bshchi\b|\bukha\b|\brosol\b|fiskesuppe|\bsancocho\b/i },
+  { name: 'Stews', re: /\bstew\b|\bhotpot\b|\bgoulash\b|\btagine\b|\btajine\b|\bcassoulet\b|\bbourguignon\b|\bbigos\b|\blapskaus\b|\bcaldereta\b|\bmechado\b|\bfeijoada\b|\bmoqueca\b|\bcaldeirada\b|\bwaterzooi\b|\bhutsepot\b|\bcoq au vin\b|\bpepperpot\b|\bratatouille\b|\bcarbonada\b|\bmarengo\b|porotos granados/i },
+  { name: 'Salads', re: /\bsalad\b|\bslaw\b|\bnicoise\b/i, not: /\bwrap\b|piri-piri/i },
+  { name: 'Pies & tarts', re: /\bpies?\b|\btarts?\b|\btarte\b|\btartlets\b|\btourti[eè]re\b|\bquiche\b/i },
+  { name: 'Cakes', re: /\bcakes?\b|cheesecake|cheescake|\bgateau\b|\bbrownies\b|\bkransekake\b|\bslagroomtaart\b|\bsuksessterte\b|\bboterkoek\b|\blamingtons\b|\bontbijtkoek\b/i, only: ['Dessert', 'Vegan'] },
+  { name: 'Cookies & biscuits', re: /\bcookies?\b|\bbiscuits?\b|\balfajores\b|\bstroopwafel\b|\bspeculaas\b|\bmamoul\b|\bkrumkake\b|\brogaliki\b|\bkurabie\b/i, not: /cheesecake/i },
+  { name: 'Pancakes & waffles', re: /\bpancakes?\b|\bwaffles?\b|\bcrepes?\b|\bblini\b|\bpoffertjes\b|\bnalesniki\b|\blatkes\b|\bbanh xeo\b|\bplacky\b|\bæbleskiver\b|\bapam balik\b/i },
+  { name: 'Puddings & spoon desserts', re: /\bpudding\b|\bmousse\b|\bflan\b|\btrifle\b|\bcustard\b|\bnatilla\b|\bcr[eè]me br[uû]l[eé]e\b|crema catalana|\bfool\b|\bmess\b|\bbudino\b|\bfirni\b|arroz con leche|leche asada|\bpouding\b/i, only: ['Dessert', 'Vegan'], not: /yorkshire|macaroni|\btarts?\b/i },
+  { name: 'Noodles', re: /\bnoodles?\b|\blo mein\b|\bchow fun\b|\bpad thai\b|\bpad see ew\b|\budon\b|\bramen\b|\blaksa\b|\bpho\b|\bmee goreng\b|\bpad kee mao\b|\bnom banh chok\b|\bbun-thit-nuong\b/i },
+  { name: 'Rice dishes', re: /\brice\b|\brisotto\b|\bpaella\b|\bbiryani\b|\bpilaf\b|\bpilau\b|\bplov\b|\bcongee\b|\bkedgeree\b|\bnasi\b|\bmandi\b|\bkabse\b|\bgallo pinto\b|\bkoshari\b|\barroz\b|\bkatsudon\b|\bsushi\b|\bjollof\b/i, not: /rice paper|rice flour|rice tart|rice cake|rice balls|rijstevlaai|rice noodle|arroz con leche/i },
+  { name: 'Dumplings', re: /\bdumplings?\b|\bpierogi+\b|\bwontons?\b|\bgyoza\b|\bmantu\b|kn[oö]del\b|\bmadombi\b|\braspeballer\b|\bhalušky\b|\bšúďalance\b/i },
+  { name: 'Burgers & sandwiches', re: /\bburgers?\b|\bsandwich(es)?\b|\bwraps?\b|\bb[aá]nh m[iì]\b|\bsloppy joes\b|\bbig mac\b|\bchivito\b|\bchorip[aá]n\b|\bprego\b|\bnum pang\b|\broti john\b|\bkapsalon\b|smørrebrød/i, not: /\bbowls?\b/i },
+  { name: 'Breads & buns', re: /\bbread\b|\bbuns?\b|\bflatbreads?\b|\bchallah\b|\barepas?\b|\blefse\b|\bphaphatha\b|\bkhobz\b|\bsopaipillas\b|\balmoj[aá]banas\b|\bdobladitas\b|\bbakes\b|\bensaimada\b|\bskoleboller\b|\bhveder\b|\bfain[aá]\b|\btendir\b/i, not: /pudding|breadfruit|bread omelette|tomato bread|bread with tomato|toasted flatbread|bun-thit/i },
+  { name: 'Fritters & fried bites', re: /\bfritters?\b|\bcroquetas\b|\bfalafel\b|\btamiya\b|\bbitterballen\b|\bchurros\b|\bdoughnuts?\b|\bdonut\b|\bbu[ñn]uelos\b|\bmagwinya\b|\bmandazi\b|\bacaraje\b|\bpączki\b|\btimbits\b|\bfritas\b|\begg rolls\b|\bbolita\b|\bzeeuwse\b/i, not: /sandwich/i },
+];
+function dishTypesOf(name, cat) {
+  name = name || '';
+  return DISH_TYPES.filter(d => d.re.test(name) && (!d.only || d.only.includes(cat)) && !(d.not && d.not.test(name))).map(d => d.name);
+}
+
+/* Recipe tags that judge the food ("UnHealthy", "Greasy"…) are never shown: cook what you fancy. */
+const JUDGY_TAG = /unhealth|calori|greas|fatty|highfat|high fat|heavy|junk|hangover|fattening|indulg|sugary|guilt|naughty|cheat/i;
+
 /* Every spelling TheMealDB might use for one cuisine. */
 function areaSpellings(name) {
   const n = areaName(name), out = new Set([n]);
   Object.entries(AREA_ALIAS).forEach(([raw, to]) => { if (to === n) out.add(raw); });
-  const seen = load('er.areas3', null);
+  const seen = load('er.areas4', null);
   ((seen && seen.v && seen.v[n]) || []).forEach(r => out.add(r));
   return [...out];
 }
 
 /* Which cuisines actually have recipes? Count them once a week (26 small requests, a–z). */
 async function areaCounts() {
-  const cached = load('er.areas3', null);
+  const cached = load('er.areas4', null);
   if (cached && Date.now() - cached.t < 7 * 864e5) return cached.c;
   const letters = 'abcdefghijklmnopqrstuvwxyz'.split('');
   const res = await Promise.all(letters.map(l => api('search.php?f=' + l).catch(() => null)));
   if (res.some(r => r === null)) throw new Error('partial');
-  const c = {}, v = {}, x = {};
+  const c = {}, v = {}, x = {}, d = {};
   res.forEach(r => (r.meals || []).forEach(m => {
+    const card = { idMeal: m.idMeal, strMeal: m.strMeal, strMealThumb: m.strMealThumb };
+    dishTypesOf(m.strMeal, m.strCategory).forEach(t => (d[t] = d[t] || []).push(card));
     const raw = (m.strArea || '').trim(), n = areaOf(m); if (!n) return;
     c[n] = (c[n] || 0) + 1;
     if (areaName(raw)) (v[n] = v[n] || []).includes(raw) || v[n].push(raw);
-    else (x[n] = x[n] || []).push({ idMeal: m.idMeal, strMeal: m.strMeal, strMealThumb: m.strMealThumb });
+    else (x[n] = x[n] || []).push(card);
   }));
-  store('er.areas3', { t: Date.now(), c, v, x });
+  store('er.areas4', { t: Date.now(), c, v, x, d });
   return c;
+}
+/* Dish types with at least 5 recipes (TheMealDB + House), each with the photo of its first recipe. */
+const DISH_MIN = 5;
+async function dishLists() {
+  const s = load('er.areas4', null), house = await loadHouse(), out = {};
+  DISH_TYPES.forEach(t => {
+    const h = house.filter(m => dishTypesOf(m.strMeal, m.strCategory).includes(t.name));
+    out[t.name] = [...h, ...((s && s.d && s.d[t.name]) || [])];
+  });
+  return out;
+}
+async function renderDishes() {
+  const box = $('#dishes'); if (!box) return;
+  const lists = await dishLists();
+  const names = DISH_TYPES.map(t => t.name).filter(n => lists[n].length >= DISH_MIN);
+  if (!names.length) return;
+  box.innerHTML = names.map(n => { const m = lists[n].find(x => x.strMealThumb), pic = m ? thumbOf(m, 'small') : '';
+    return `<a class="chip${pic ? '' : ' no-img'}" href="#/browse/d/${encodeURIComponent(n)}">${pic ? `<img src="${esc(pic)}" alt="" loading="lazy">` : ''}${esc(n)}</a>`; }).join('');
+  $('#dishSec').hidden = false;
 }
 function renderAreas(names, open) {
   const box = $('#areas'); if (!box) return;
@@ -722,10 +771,12 @@ async function viewBrowse(kind, value) {
   const course = kind === 'c' && COURSES[value.toLowerCase()];
   const house = loadHouse().then(list => list.filter(m => houseInBrowse(m, kind, value)));
   let sources;
-  if (kind === 'a') {
+  if (kind === 'd') {
+    sources = [areaCounts().catch(() => null).then(() => dishLists()).then(l => l[value] || [])];
+  } else if (kind === 'a') {
     sources = [house,
       ...areaSpellings(value).map(v => api('filter.php?a=' + encodeURIComponent(v)).then(d => d.meals || [])),
-      areaCounts().catch(() => null).then(() => { const s = load('er.areas3', null); return (s && s.x && s.x[areaName(value)]) || []; }),
+      areaCounts().catch(() => null).then(() => { const s = load('er.areas4', null); return (s && s.x && s.x[areaName(value)]) || []; }),
     ];
   } else {
     const cats = course ? course.mdb : [value];
@@ -1087,7 +1138,9 @@ async function viewMeal(id) {
   try { meal = await getMeal(id); } catch { view.innerHTML = emptyHTML(T.offline); return; }
   if (!meal) { view.innerHTML = emptyHTML(T.noResults); return; }
   const st = getState(id);
-  const tags = (meal.strTags || '').split(',').map(s => s.trim()).filter(Boolean).slice(0, 3);
+  const dishes = dishTypesOf(meal.strMeal, catsOf(meal)[0]);
+  const tags = (meal.strTags || '').split(',').map(s => s.trim())
+    .filter(t => t && !JUDGY_TAG.test(t) && !dishes.some(d => d.toLowerCase().startsWith(t.toLowerCase()))).slice(0, 3);
 
   view.innerHTML = `
     <div class="meal-layout"><div class="meal-side">
@@ -1103,6 +1156,7 @@ async function viewMeal(id) {
     <div class="tags">
       ${areaOf(meal) ? `<a class="tag link" href="#/browse/a/${encodeURIComponent(areaOf(meal))}">${esc(areaOf(meal))}</a>` : ''}
       ${catsOf(meal).map(c => `<a class="tag p link" href="#/browse/c/${encodeURIComponent(c)}">${esc(c)}</a>`).join('')}
+      ${dishes.map(d => `<a class="tag o link" href="#/browse/d/${encodeURIComponent(d)}">${esc(d)}</a>`).join('')}
       ${tags.map(t => `<span class="tag o">${esc(t)}</span>`).join('')}
       ${meal._time ? `<span class="tag y">⏱ ${esc(meal._time)}</span>` : ''}
     </div>
@@ -1360,7 +1414,7 @@ function route() {
   view = fresh;
   if (parts[0] === 'meal' && parts[1]) viewMeal(parts[1]);
   else if (parts[0] === 'cook' && parts[1]) viewCook(parts[1], parts[2]);
-  else if (parts[0] === 'browse' && parts[2]) viewBrowse(parts[1] === 'a' ? 'a' : 'c', parts[2]);
+  else if (parts[0] === 'browse' && parts[2]) viewBrowse(['a', 'd'].includes(parts[1]) ? parts[1] : 'c', parts[2]);
   else if (parts[0] === 'done' && parts[1]) viewDone(parts[1]);
   else if (parts[0] === 'saved') viewSaved();
   else if (parts[0] === 'house') viewHouse();
